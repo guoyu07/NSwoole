@@ -88,6 +88,22 @@
 %\hline
 %\end{longtable}
 
+% **************************************
+% Float
+% **************************************
+\usepackage{caption}
+\DeclareCaptionType [fileext=loe]{example}[例][例目录] 
+%\usepackage{float}
+%\newfloat{example}{tbph}{loe}
+%\restylefloat*{example}
+%\floatstyle{plain}
+%\floatname{example}{例}
+%\captionsetup[example]{position=top}
+%\newcommand{\listofexamples}{\listof{example}{例目录}}
+\usepackage{subfig}                 % put before fvrb-ex
+\newsubfloat[position=bottom,listofformat=subsimple]{example}
+
+
 \usepackage{color}
 \definecolor{pblue}{rgb}{0.13,0.13,1}
 \definecolor{pgreen}{rgb}{0,0.5,0}
@@ -157,6 +173,8 @@
 \tableofcontents
 \listoffigures
 \listoftables
+\listofexamples
+
 \printindex
 
 
@@ -166,16 +184,16 @@
 \include{server}
 %
 %
-%\include{RDS}
+\include{process}
 %
 %
-%\include{pdo}
+\include{timer}
 %
 %
-%\include{user}
+\include{async}
 %
 %
-%\include{feed}
+\include{memory}
 %
 %
 %

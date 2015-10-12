@@ -1,128 +1,402 @@
-\part{Timer}
+\part{Process}
 
 
 \chapter{Overview}
 
-\section{Countdown}
 
-倒计时（或倒数）指用计时方式以时间减少直到计时器为零或停止的形式。
+从swoole-1.7.2开始增加了一个进程管理模块Process来替代PHP的pcntl扩展。
+
+PHP的进程控制pcntl扩展支持实现了Unix\footnote{pctl扩展模块没有非Unix平台可用的函数（即非Unix类系统不支持此模块），因此在 Windows 平台上不可用。}方式的进程创建, 程序执行, 信号处理以及进程的中断，但是pcntl提供的进程控制不能被应用在Web服务器环境，当其被用于Web服务环境时可能会带来意外的结果。
+
+pcntl的缺陷在于其只提供了fork这样原始的接口，容易使用错误。
+
+注意，fork是创建了一个子进程，父进程和子进程都从fork的位置开始向下继续执行，不同的是父进程执行过程中得到的fork返回值为子进程号，而子进程得到的是0。
+
+在PHP中进程控制支持默认是关闭的，需要使用\texttt{--enable-pcntl}配置选项重新编译PHP的 CGI或CLI版本来打开进程控制支持。
+
+PCNTL现在使用了ticks作为信号处理的回调机制，ticks在速度上远远超过了之前的处理机制。 这个变化与“用户ticks”遵循了相同的语义。您可以使用declare() 语句在程序中指定允许发生回调的位置。这使得我们对异步事件处理的开销最小化。在编译PHP时 启用pcntl将始终承担这种开销，不论您的脚本中是否真正使用了pcntl。
+
+有一个调整是PHP 4.3.0之前的所有pcntl脚本要使其工作，要么在期望允许回调的（代码）部分使用 declare() ，要么使用declare()新的全局语法 使其在整个脚本范围有效。
+
+\begin{compactitem}
+\item pcntl\_alarm — 为进程设置一个alarm闹钟信号
+\item pcntl\_errno — 别名 pcntl\_strerror
+\item pcntl\_exec — 在当前进程空间执行指定程序
+\item pcntl\_fork — 在当前进程当前位置产生分支（子进程）。
+\item pcntl\_get_last_error — Retrieve the error number set by the last pcntl function which failed
+\item pcntl\_getpriority — 获取任意进程的优先级
+\item pcntl\_setpriority — 修改任意进程的优先级
+\item pcntl\_signal_dispatch — 调用等待信号的处理器
+\item pcntl\_signal — 安装一个信号处理器
+\item pcntl\_sigprocmask — 设置或检索阻塞信号
+\item pcntl\_sigtimedwait — 带超时机制的信号等待
+\item pcntl\_sigwaitinfo — 等待信号
+\item pcntl\_strerror — Retrieve the system error message associated with the given errno
+\item pcntl\_wait — 等待或返回fork的子进程状态
+\item pcntl\_waitpid — 等待或返回fork的子进程状态
+\item pcntl\_wexitstatus — 返回一个中断的子进程的返回代码
+\item pcntl\_wifexited — 检查状态代码是否代表一个正常的退出。
+\item pcntl\_wifsignaled — 检查子进程状态码是否代表由于某个信号而中断
+\item pcntl\_wifstopped — 检查子进程当前是否已经停止
+\item pcntl\_wstopsig — 返回导致子进程停止的信号
+\item pcntl\_wtermsig — 返回导致子进程中断的信号
+\end{compactitem}
+
+
+这个pcntl示例用于产生一个守护进程并可以通过信号处理进行关闭。
+
+
+\begin{example}
+进程控制示例
+\begin{lstlisting}[language=PHP]
+<?php
+//定义ticks
+declare(ticks=1);
+
+//产生子进程分支
+$pid = pcntl_fork();
+if ($pid == -1) {
+     die("could not fork"); //pcntl_fork返回-1标明创建子进程失败
+} else if ($pid) {
+     exit(); //父进程中pcntl_fork返回创建的子进程进程号
+} else {
+     // 子进程pcntl_fork返回的时0
+}
+
+// 从当前终端分离
+if (posix_setsid() == -1) {
+    die("could not detach from terminal");
+}
+
+// 安装信号处理器
+pcntl_signal(SIGTERM, "sig_handler");
+pcntl_signal(SIGHUP, "sig_handler");
+
+// 执行无限循环任务
+while (1) {
+    // do something interesting here
+}
+
+function sig_handler($signo) 
+{
+     switch ($signo) {
+         case SIGTERM:
+             // 处理中断信号
+             exit;
+             break;
+         case SIGHUP:
+             // 处理重启信号
+             break;
+         default:
+             // 处理所有其他信号
+     }
+}
+?>
+\end{lstlisting}
+\end{example}
+
+另外，System\_Daemon（\url{http://pear.php.net/package/System_Daemon}）也可以用来使用PHP创建后台进程。
+
 
 \begin{lstlisting}[language=PHP]
 <?php
-swoole_timer_add(1000, function($interval) {
-    echo "timer[$interval] :".microtime(true)." called\n";
-});
+// Include PEAR's Daemon Class
+require_once "System/Daemon.php";
 
-echo "Added timer1: ".microtime(true)."\n";
+// Bare minimum setup
+System_Daemon::setOption("appName", "mydaemonname");
 
-swoole_timer_add(3000, function($interval) {
-    echo "timer[$interval] :".microtime(true)." called\n";
-    static $remove = false;
-    if (!$remove) {		    
-		swoole_timer_after(10000, function(){
-		echo microtime(true)." Timeout, clear interval\n";
-			swoole_timer_del(3000);
-		});
-		$remove = true;
-	}
-});
+// Spawn Deamon!
+System_Daemon::start();
 
-echo "Added timer2: ".microtime(true)."\n";
+// Your PHP Here!
+while (true) {
+    doTask();
+}
+
+// Stop daemon!
+System_Daemon::stop();
+?>
 \end{lstlisting}
 
 
 
-\chapter{Timer}
+\section{Signal}
 
-swoole提供了类似JavaScript的setInterval/setTimeout异步高精度定时器，精度为毫秒级。
+
+
+\subsection{Mac OS X}
+
+
+
 
 
 
 \begin{lstlisting}[language=PHP]
-//每隔2000ms触发一次
-swoole_timer_tick(2000,function($timer_id){
-	echo "tick-2000ms\n";
-});
-
-// 3000ms后执行该函数
-swoole_timer_after(3000,function(){
-	echo "after 3000ms.\n";
-});
+SIGHUP = 1
+SIGINT = 2
+SIGQUIT = 3
+SIGILL = 4
+SIGTRAP = 5
+SIGABRT = 6
+SIGIOT = 6
+SIGBUS = 10
+SIGFPE = 8
+SIGUSR1 = 30
+SIGSEGV = 11
+SIGUSR2 = 31
+SIGPIPE = 13
+SIGALRM = 14
+SIGTERM = 15
+SIGSTKFLT not defined 
+SIGCLD not defined 
+SIGCHLD = 20
+SIGCONT = 19
+SIGTSTP = 18
+SIGTTIN = 21
+SIGTTOU = 22
+SIGURG = 16
+SIGXCPU = 24
+SIGXFSZ = 25
+SIGVTALRM = 26
+SIGPROF = 27
+SIGWINCH = 28
+SIGPOLL not defined 
+SIGIO = 23
+SIGPWR not defined 
+SIGSYS = 12
+SIGBABY = 12
+SIG_BLOCK = 1
+SIG_UNBLOCK = 2
+SIG_SETMASK = 3
 \end{lstlisting}
+
+\subsection{Linux}
+
+
+
+\begin{lstlisting}[language=PHP]
+$ kill -l
+1) SIGHUP       2) SIGINT       3) SIGQUIT      4) SIGILL       5) SIGTRAP
+6) SIGABRT      7) SIGBUS       8) SIGFPE       9) SIGKILL     10) SIGUSR1
+11) SIGSEGV     12) SIGUSR2     13) SIGPIPE     14) SIGALRM     15) SIGTERM
+16) SIGSTKFLT   17) SIGCHLD     18) SIGCONT     19) SIGSTOP     20) SIGTSTP
+21) SIGTTIN     22) SIGTTOU     23) SIGURG      24) SIGXCPU     25) SIGXFSZ
+26) SIGVTALRM   27) SIGPROF     28) SIGWINCH    29) SIGIO       30) SIGPWR
+31) SIGSYS      34) SIGRTMIN    35) SIGRTMIN+1  36) SIGRTMIN+2  37) SIGRTMIN+3
+38) SIGRTMIN+4  39) SIGRTMIN+5  40) SIGRTMIN+6  41) SIGRTMIN+7  42) SIGRTMIN+8
+43) SIGRTMIN+9  44) SIGRTMIN+10 45) SIGRTMIN+11 46) SIGRTMIN+12 47) SIGRTMIN+13
+48) SIGRTMIN+14 49) SIGRTMIN+15 50) SIGRTMAX-14 51) SIGRTMAX-13 52) SIGRTMAX-12
+53) SIGRTMAX-11 54) SIGRTMAX-10 55) SIGRTMAX-9  56) SIGRTMAX-8  57) SIGRTMAX-7
+58) SIGRTMAX-6  59) SIGRTMAX-5  60) SIGRTMAX-4  61) SIGRTMAX-3  62) SIGRTMAX-2
+63) SIGRTMAX-1  64) SIGRTMAX
+\end{lstlisting}
+
+
+\subsection{RedHat}
+
+
+\begin{lstlisting}[language=PHP]
+$ kill -l
+Signal SIGHUP = 1
+Signal SIGINT = 2
+Signal SIGQUIT = 3
+Signal SIGILL = 4
+Signal SIGTRAP = 5
+Signal SIGABRT = 6
+Signal SIGIOT = 6
+Signal SIGBUS = 7
+Signal SIGFPE = 8
+Signal SIGUSR1 = 10
+Signal SIGSEGV = 11
+Signal SIGUSR2 = 12
+Signal SIGPIPE = 13
+Signal SIGALRM = 14
+Signal SIGTERM = 15
+Signal SIGSTKFLT = 16
+Signal SIGCLD = 17
+Signal SIGCHLD = 17
+Signal SIGCONT = 18
+Signal SIGTSTP = 20
+Signal SIGTTIN = 21
+Signal SIGTTOU = 22
+Signal SIGURG = 23
+Signal SIGXCPU = 24
+Signal SIGXFSZ = 25
+Signal SIGVTALRM = 26
+Signal SIGPROF = 27
+Signal SIGWINCH = 28
+Signal SIGPOLL = 29
+Signal SIGIO = 29
+Signal SIGPWR = 30
+Signal SIGSYS = 31
+Signal SIGBABY = 31
+Signal SIG_BLOCK = 0
+Signal SIG_UNBLOCK = 1
+Signal SIG_SETMASK = 2
+\end{lstlisting}
+
+
+\subsection{Ubuntu}
+
+
+\begin{lstlisting}[language=PHP]
+$ kill -l
+1) SIGHUP      2) SIGINT      3) SIGQUIT      4) SIGILL
+5) SIGTRAP      6) SIGABRT      7) SIGBUS      8) SIGFPE
+9) SIGKILL    10) SIGUSR1    11) SIGSEGV    12) SIGUSR2
+13) SIGPIPE    14) SIGALRM    15) SIGTERM    17) SIGCHLD
+18) SIGCONT    19) SIGSTOP    20) SIGTSTP    21) SIGTTIN
+22) SIGTTOU    23) SIGURG      24) SIGXCPU    25) SIGXFSZ
+26) SIGVTALRM  27) SIGPROF    28) SIGWINCH    29) SIGIO
+30) SIGPWR      31) SIGSYS      33) SIGRTMIN    34) SIGRTMIN+1
+35) SIGRTMIN+2  36) SIGRTMIN+3  37) SIGRTMIN+4  38) SIGRTMIN+5
+39) SIGRTMIN+6  40) SIGRTMIN+7  41) SIGRTMIN+8  42) SIGRTMIN+9
+43) SIGRTMIN+10 44) SIGRTMIN+11 45) SIGRTMIN+12 46) SIGRTMIN+13
+47) SIGRTMIN+14 48) SIGRTMIN+15 49) SIGRTMAX-15 50) SIGRTMAX-14
+51) SIGRTMAX-13 52) SIGRTMAX-12 53) SIGRTMAX-11 54) SIGRTMAX-10
+55) SIGRTMAX-9  56) SIGRTMAX-8  57) SIGRTMAX-7  58) SIGRTMAX-6
+59) SIGRTMAX-5  60) SIGRTMAX-4  61) SIGRTMAX-3  62) SIGRTMAX-2
+63) SIGRTMAX-1  64) SIGRTMAX
+
+SIG_IGN, SIG_DFL, SIG_ERR are no real signals
+\end{lstlisting}
+
+
+\section{Process}
+
+
+pcntl本身存在很多不足，例如：
 
 \begin{compactitem}
-\item swoole\_timer\_tick函数就相当于setInterval，是持续触发的
-\item swoole\_timer\_after函数相当于setTimeout，仅在约定的时间触发一次
+\item pcntl无法用在fpm/apache中，只能用于CLI\footnote{pcntl only compiles in to the CLI version of PHP, not the Apache module，and \texttt{function_exists('pcntl\_fork')} returns true just fine from the CLI, and only returns false for HTTP requests. The same is true of ALL of the \texttt{pcntl\_*()} functions.}模式。
+
+\item pcntl没有提供进程间通信的功能
+\item pcntl不支持重定向标准输入和输出
+\item pcntl只提供了fork这样原始的接口，容易使用错误
 \end{compactitem}
 
-swoole\_timer\_tick/swoole\_timer\_after函数会返回一个整数，表示定时器的ID。
-
-
-swoole\_timer\_clear可以用来清除定时器，参数为定时器ID。
-
-
-\begin{lstlisting}[language=PHP]
-
-\end{lstlisting}
-
-
-
-
-
-
-
-
-\begin{lstlisting}[language=PHP]
-
-\end{lstlisting}
-
-
-
-
-\begin{lstlisting}[language=PHP]
-
-\end{lstlisting}
-
-
-
-
-\begin{lstlisting}[language=PHP]
-
-\end{lstlisting}
-
-
-
-
-\begin{lstlisting}[language=PHP]
-
-\end{lstlisting}
-
-
-
-
-\begin{lstlisting}[language=PHP]
-
+相比而言，swoole\_process提供了比pcntl更强大的功能，更易用的API，使PHP在多进程编程方面更加轻松。更重要的是，swoole\_process可以安全地用于fpm/apache环境下。
+
+\begin{compactitem}
+\item swoole\_process提供了基于unixsock的进程间通信，只需调用write/read或者push/pop即可。
+\item swoole\_process支持重定向标准输入和输出，在子进程内echo不会打印到屏幕，而是写入管道，读键盘输入可以重定向为管道来读取数据。
+\item swoole\_process允许用于fpm/apache的Web请求中。
+
+\item swoole\_process配合swoole\_event模块来创建的PHP子进程可以支持异步的事件驱动模式。
+\item swoole\_process提供了exec接口，创建的进程可以执行其他程序，而且与原PHP父进程之间可以方便的通信 
+\end{compactitem}
+
+例如，如果是其他类里的其他方法，可以使用匿名函数并在里面在调用对象方法。
+
+\begin{lstlisting}[language=PHP]
+$process = new \swoole_process(function(swoole_process $worker){
+	GateWay::serverFunc($worker);
+} ,FALSE );　
+\end{lstlisting}
+
+
+\subsection{worker process}
+
+
+\begin{lstlisting}[language=PHP]
+$worker_num = 8;
+ 
+for($i = 0; $i < $worker_num; $i++)
+{
+    $process = new swoole_process('callback_function', true);
+    $pid = $process->start();
+    $workers[$pid] = $process;
+}
+ 
+foreach($workers as $pid => $process)
+{
+    $process->write("hello worker[$pid]\n");
+    echo "From Worker: ".$process->read();
+}
+ 
+for($i = 0; $i < $worker_num; $i++)
+{
+    $ret = swoole_process::wait();
+    $pid = $ret['pid'];
+    unset($workers[$pid]);
+    echo "Worker Exit, PID=".$pid.PHP_EOL;
+}
+ 
+function callback_function(swoole_process $worker)
+{
+    //echo "Worker: start. PID=".$worker->pid."\n";
+    //recv data from master
+    $recv = $worker->read();
+    echo "From Master: $recv\n";
+ 
+    //send data to master
+    $worker->write("hello master\n");
+ 
+    sleep(2);
+    $worker->exit(0);
+}
 \end{lstlisting}
 
 
+\subsection{child process}
 
+子进程事件驱动模式
 
 \begin{lstlisting}[language=PHP]
-
+function callback_function_async(swoole_process $worker)
+{
+    //echo "Worker: start. PID=".$worker->pid."\n";
+    //recv data from master
+    $GLOBALS['worker'] = $worker;
+    swoole_event_add($worker->pipe, function($pipe) {
+        $worker = $GLOBALS['worker'];
+        $recv = $worker->read();
+ 
+        echo "From Master: $recv\n";
+ 
+        //send data to master
+        $worker->write("hello master\n");
+ 
+        sleep(2);
+ 
+        $worker->exit(0);
+    });
+}
 \end{lstlisting}
 
 
+\subsection{python process}
 
+PHP创建一个Python子进程，并与之通信
 
 \begin{lstlisting}[language=PHP]
-
+$process = new swoole_process('pyhon_process', true);
+$pid = $process->start();
+ 
+function pyhon_process(swoole_process $worker)
+{
+    $worker->exec('/usr/bin/python', array("echo.py"));
+}
+ 
+$process->write("hello world\n");
+echo $process->read();
+ 
+$ret = swoole_process::wait();
+var_dump($ret);
 \end{lstlisting}
-
 
+Python程序echo.py
 
 
 \begin{lstlisting}[language=PHP]
-
+import sys
+ 
+def main():
+    s = raw_input()
+    print "Python:" + s
+ 
+main()
 \end{lstlisting}
 
 
@@ -3080,3 +3354,4 @@ swoole\_timer\_clear可以用来清除定时器，参数为定时器ID。
 \begin{lstlisting}[language=PHP]
 
 \end{lstlisting}
+
