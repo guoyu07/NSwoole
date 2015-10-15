@@ -23,10 +23,10 @@ PCNTL现在使用了ticks作为信号处理的回调机制，ticks在速度上�
 \item pcntl\_errno — 别名 pcntl\_strerror
 \item pcntl\_exec — 在当前进程空间执行指定程序
 \item pcntl\_fork — 在当前进程当前位置产生分支（子进程）。
-\item pcntl\_get_last_error — Retrieve the error number set by the last pcntl function which failed
+\item pcntl\_get\_last\_error — Retrieve the error number set by the last pcntl function which failed
 \item pcntl\_getpriority — 获取任意进程的优先级
 \item pcntl\_setpriority — 修改任意进程的优先级
-\item pcntl\_signal_dispatch — 调用等待信号的处理器
+\item pcntl\_signal\_dispatch — 调用等待信号的处理器
 \item pcntl\_signal — 安装一个信号处理器
 \item pcntl\_sigprocmask — 设置或检索阻塞信号
 \item pcntl\_sigtimedwait — 带超时机制的信号等待
@@ -269,7 +269,7 @@ SIG_IGN, SIG_DFL, SIG_ERR are no real signals
 pcntl本身存在很多不足，例如：
 
 \begin{compactitem}
-\item pcntl无法用在fpm/apache中，只能用于CLI\footnote{pcntl only compiles in to the CLI version of PHP, not the Apache module，and \texttt{function_exists('pcntl\_fork')} returns true just fine from the CLI, and only returns false for HTTP requests. The same is true of ALL of the \texttt{pcntl\_*()} functions.}模式。
+\item pcntl无法用在fpm/apache中，只能用于CLI\footnote{pcntl only compiles in to the CLI version of PHP, not the Apache module，and \texttt{function\_exists('pcntl\_fork')} returns true just fine from the CLI, and only returns false for HTTP requests. The same is true of ALL of the \texttt{pcntl\_*()} functions.}模式。
 
 \item pcntl没有提供进程间通信的功能
 \item pcntl不支持重定向标准输入和输出

@@ -5927,21 +5927,32 @@
 \chapter{Table}
 
 
-swoole\_table一个基于共享内存和锁实现的超高性能，并发数据结构。用于解决多进程/多线程数据共享和同步加锁问题。
+swoole\_table一个基于共享内存和锁实现的超高性能\footnote{swoole_table-0.1版本，单进程压测每秒可读写50W次左右。}的并发数据结构，可以用于解决多进程/多线程数据共享和同步加锁问题。
 
 
 \begin{compactitem}
-\item 性能强悍，单线程每秒可读写50万次。8核机器8线程可以支持每秒并发读写400万次
+\item 性能强悍，单线程每秒可读写50万次。8核机器8线程可以支持每秒并发读写400万次。
 \item 无需加锁，swoole\_table内置行锁自旋锁，所有操作均是多线程/多进程安全。用户层完全不需要考虑数据同步问题。
-\item 支持多进程，swoole\_table可以用于多进程之间共享数据
+\item 支持多进程，swoole\_table可以用于多进程之间共享数据。
 \end{compactitem}
 
 swoole\_table使用行锁，而不是全局锁，仅当2个进程在同一CPU时间，并发读取同一条数据才会进行发生抢锁。
 
+实验性质的swoole\_table模块不建议在生产环境中使用，应该继续使用Redis/Apc/Yac作为数据共享层。
+
+\section{Countable}
+
+swoole_table类实现了迭代器和Countable接口，可以使用foreach进行遍历，并使用count计算当前行数。
 
 \begin{lstlisting}[language=PHP]
-
+foreach($table as $row){
+	var_dump($row)
+}
+echo count($table);
 \end{lstlisting}
+
+
+后续的swoole\_table会增加incr方法，用于内存级计数器。
 
 
 
