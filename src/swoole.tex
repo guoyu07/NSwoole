@@ -780,6 +780,185 @@ Swoole的网络IO部分基于epoll/kqueue事件循环，因此全异步非阻塞
 \end{lstlisting}
 
 
+\section{swiftmailer}
+
+
+PHP直接使用SMTP协议来同步发送邮件的速度太慢，所以需要基于Swoole等来实现邮件的异步发送。
+
+
+
+大概来说，Swoole服务器端程序以cli模式并运行在守护进程模式，然后再通过一个客户端去连接服务器端并通知发送邮件，服务器端在收到信息后过回调函数，执行相应的程序来实现邮件的异步发送。
+
+\subsection{MailServer}
+
+使用composer安装SwiftMailer。
+
+\begin{lstlisting}[language=bash]
+$ composer require swiftmailer/swiftmailer
+\end{lstlisting}
+
+使用Swoole服务器程序来响应客户端的请求并通过swiftmailer发送邮件。
+
+
+\begin{lstlisting}[language=bash,basicstyle=\ttfamily\footnotesize]
+<?php
+/**
+ * @author 
+ * @created 2015/10/18 18:20
+ */
+require __DIR__ . '/vendor/autoload.php';
+
+class MailServer
+{
+	const MAIL_USERNAME = 'no-reply@bz-inc.com';
+	const MAIL_PASSWORD = 'p@$$w';
+	
+	private $logger = null;
+	private $server = null;
+	
+	public function __construct()
+	{
+		$this->server = new swoole_server('0.0.0.0',9501);
+		$this->server->set(
+			[
+				'worker_num'=>8,
+				'daemonize'=>false,
+				'max_request'=>100000,
+				'dispatch_mode'=>2,
+				'debug_mode'=>1
+			]
+		);
+		
+		$this->server->on('Start',[$this,'onStart']);
+		$this->server->on('Connect',[$this,'onConnnect']);
+		$this->server->on('Receive',[$this,'onReceive']);
+		$this->server->on('Close',[$this,'onClose');
+		
+		$this->server->start();
+	}
+	
+	public function onStart()
+	{
+		//
+	}
+	
+	public function onConnect($server,$descriptors,$fromId)
+	{
+		//
+	}
+	
+	public function onReceive(swoole_server $server,$descriptors,$fromId,$data)
+	{
+		$msg=json_decode($data,true);
+		$sent=$this->sendMail($msg['address'],$msg['subject'],$msg['body']);
+		printf("%s mail is sent.\n",$sent);
+	}
+	
+	public function onClose($server, $descriptors,$fromId)
+	{
+		//
+	}
+	
+	public function sendMail($address,$subject,$body)
+	{
+		$body=htmlspecialchars_decode($body);
+		$transport=Swift_SmtpTransport::newInstance('smtp.partner.outlook.cn',587,'tls');
+		$transport->setUsername(self::MAIL_USERNAME);
+		$transport->setPassword(self::MAIL_PASSWORD);
+		$mailer=Swift_Mailer::newInstance($transport);
+		
+		$message=Swift_Message::newInstance();
+		$message->setFrom([self::MAIL_USERNAME=>'班砖网络']);
+		$message->setTo($address);
+		$message->setSubject($subject);
+		$message->addPart($body,'text/html');
+		$message->setBody($body);
+		
+		return $mailer->send($message);
+	}
+}
+$server=new MailServer();
+\end{lstlisting}
+
+
+在配置好PHP以及Swoole后，使用cli启动服务端：
+
+\begin{lstlisting}[language=bash]
+$ php mail_server.php
+\end{lstlisting}
+
+如果需要让服务端在后台执行，可以修改配置数组\texttt{'daemonize' => false}为\texttt{'daemonize' => true}。
+
+
+\subsection{MailClient}
+
+使用client连接server并发送数据。
+
+
+
+
+\begin{lstlisting}[language=bash]
+<?php
+/**
+ * @author
+ * @created 2015/10/18 18:40
+ */
+class MailClient
+{
+	private $client;
+	public function __construct(){
+		$this->client=new swoole_client(SWOOLE_SOCK_TCP);
+	}
+	
+	public function connect(){
+		if(!$this->client->connect('0.0.0.0',9501,1)){
+			throw new CException(sprintf('Swoole Error: %s',$this->client->errCode));
+		}
+	}
+	
+	public function send($data)
+	{
+		if($this->client->isConnect()){
+			if(!is_string($data)){
+				$data=json_encode($data);
+			}
+			return $this->client->send($data);
+		}else{
+			throw new CException('Swoole Server does not connected.');
+		}
+	}
+	
+	public function close(){
+		$this->client->close();
+	}
+}
+\end{lstlisting}
+
+
+\subsection{MailInstance}
+
+
+\begin{lstlisting}[language=bash]
+$data=array(
+	'address'=>$mails,
+	'subject'=>$subject,
+	'body'=>htmlspecialchars($body)
+);
+
+$mailClient=new MailClient();
+$mailClient->connect();
+
+if($mailClient->send($data)){
+	echo 'success';
+}else{
+	echo 'fail';
+}
+
+$mailClient->close();
+\end{lstlisting}
+
+
+
 
 
 \begin{lstlisting}[language=bash]
@@ -792,6 +971,7 @@ Swoole的网络IO部分基于epoll/kqueue事件循环，因此全异步非阻塞
 \begin{lstlisting}[language=bash]
 
 \end{lstlisting}
+
 
 
 \chapter{Client}

@@ -4,10 +4,627 @@
 
 \chapter{Overview}
 
+在WebSocket出现之前，Web交互一般是基于HTTP协议的短连接或者长连接。例如，Comet\footnote{具体来说，Comet基于长轮询或iframe流来实现，仍然基于HTTP连接，其中：\newline $\bullet$ 长轮询是在打开一条连接以后保持，等待服务器推送来数据再关闭的方式。\newline $\bullet$ iframe流方式是在页面中插入一个隐藏的iframe，利用其src属性在服务器和客户端之间创建一条长链接，服务器向iframe传输数据（通常是HTML，内有负责插入信息的javascript）来实时更新页面。}曾经作为一个权宜实现来让服务器实时地将更新的信息传送到客户端，而无须客户端发出请求。
+
+
+
+虽然WebSocket的设计初衷是用于Web浏览器和Web服务器，但是实际上可以被用于任何类型的客户端/服务器应用中。例如，WebSocket通信协议实现的是基于浏览器的原生socket，这样原先只有在C/S模式下的开发模式都可以移植到Web，从而就可以通过浏览器的支持在Web上实现与服务器端的Socket通信。
+
+
+\section{Handshake}
+
+在上述的WebSocket客户端示例中，当Web应用程序调用\textt{new WebSocket(url)}接口时，客户端就开始了与地址为url的WebServer建立握手连接的过程。
+
+
+\begin{compactenum}
+\item WebSocket客户端与WebSocket服务器通过TCP三次握手建立连接，如果这个建立连接失败，那么后面的过程就不会执行，WebSocket客户端将收到错误消息通知。
+
+\item 在TCP建立连接成功后，WebSocket客户端通过http协议传送WebSocket支持的版本号、协议的子版本号、原始地址、主机地址等一些列字段给服务器端。
+
+\item WebSocket服务器收到WebSocket客户端发送来的握手请求后，如果数据包数据和格式正确，客户端和服务器端的协议版本号匹配等，就接受本次握手连接，并给出相应的数据回复，同样回复的数据包也是采用http协议传输。
+
+\item WebSocket客户端收到服务器回复的数据包后，如果数据包内容、格式都没有问题的话，就表示本次连接成功，触发onopen消息，此时Web开发者就可以在此时通过send接口想服务器发送数据。否则，握手连接失败，Web应用程序会收到onerror消息，并且能知道连接失败的原因。
+
+
+\end{compactenum}
+
+
+
+这个握手很像HTTP，但是实际上却不是，它允许服务器以HTTP的方式解释一部分handshake的请求，然后切换为WebSocket。
+
+
+\section{Heartbeat}
+
+
+心跳包就是在客户端（例如即时通信）和服务器之间定时通知对方自己状态的一个自己定义的命令字，按照一定的时间间隔定时发送，类似于心跳，所以叫做心跳包。
+
+
+
+通常情况下，心跳包都是由客户端定时向服务器发送简单的固定信息来告诉服务器端自己还在线，并接收服务器响应的固定信息。如果服务端在规定的时间内没有收到客户端信息则将客户端视为断开。
+
+\begin{compactitem}
+\item 发包方：可以是客户端也可以是服务端，看哪边实现方便合理而定（一般是客户端）。
+\item 收包方：作为收包方的服务器也可以定时轮询发心跳包，不过会消耗服务器资源。
+\end{compactitem}
+
+网络中的数据接收和发送都是使用操作系统中的Socket进行实现的，但是如果Socket已经断开，那么发送数据和接收数据的时候就一定会有问题。
+
+\begin{compactitem}
+\item 如果服务器判定客户端掉线并关闭，那么客户端后续发送的数据包被直接丢弃。
+\item 如果Socket连接断开，那么服务器会继续监听客户端IP地址和端口，客户端无法将数据发送出去。
+\end{compactitem}
+
+为了判断Socket是否还可以继续使用，需要在系统中创建心跳机制，其实质就是为了保持长连接。
+
+
+其实，TCP中已经为用户实现了一个叫做心跳\footnote{TCP本身实现的心跳包机制是TCP的选项，默认设置是2小时的心跳频率，不过检查不到机器断电、网线拔出、防火墙等断线类型。}的机制，如果用户设置了心跳，那么TCP就会在一定的时间（比如设置的是3秒钟）内发送当前设置的次数的心跳（比如说2次），并且此信息不会影响用户自己定义的协议。
+
+
+
+具体来说，心跳包的内容没有什么特别规定，不过一般都是在逻辑层发送很小的包，或者只包含包头的一个空包。例如，所谓TCP“心跳”就是定时发送一个自定义的结构体（心跳包或心跳帧），可以让对方知道自己“在线”以确保连接的有效性。
+
+
+如果由服务器端主动发送心跳包来检测客户端在线状态，在一定时间间隔下发送（send）一个空包给客户端后，需要客户端反馈一个同样的空包回来，那么在一定时间内收不到（recv）客户端发送过来的反馈包时，服务器就只有认定客户端掉线。
+
+在长连接下，有可能很长一段时间都没有数据往来，而且在理论上来说，长连接是一直保持连接的，只是实际情况中中间节点出现某些故障是难以知道的。
+
+有些情况下，有的节点（防火墙）会自动把一定时间之内没有数据交互的连接断开，因此特别需要心跳包来维持长连接的保活。
+
+在确定客户端断线之后，服务器的逻辑逻辑层根据需求可能需要做一些事情，比如断线后的数据清理以及重新连接等，因此心跳包主要用于长连接的保活和断线处理。
+
+一般的应用下，判定客户端断线的时间在30-40秒左右，如果对于实时性要求高，可以设置6-9秒。例如，心跳包在GRPS通信和CDMA通信的应用方面使用非常广泛，心跳包通常设定在30-40秒之间，而且数据网关会定时清理没有数据的路由。
+
+\section{Protocol}
+
+WebSocket是html5提出的一个协议规范，并被IETF以RFC 6455标准化，后来由W3C在Web IDL中将WebSocket API标准化。
+
+WebSocket并不基于HTTP连接，而是在一个单独的TCP连接上提供了全双工的通信信道，而且WebSocket在TCP之上支持消息流传输，这样TCP就无需通过固定字节方式来处理流的字节数据。
+
+或者说，WebSocket与HTTP协议一样都是基于TCP的，所以它们都是可靠的协议，用户调用的WebSocket的send函数在客户端的实现中最终都是通过TCP的系统接口进行传输的。
+
+\begin{compactitem}
+\item WebSocket服务器与WebSocket客户端之间交换的标头信息很小，大概只有2字节;
+\item WebSocket客户端与WebSocket服务器都可以主动传送数据给对方;
+\item 不用频繁创建TCP请求及销毁请求，减少网络带宽资源的占用，同时也节省服务器资源;
+\end{compactitem}
+
+作为一个独立的基于TCP协议的通信协议，WebSocket和HTTP的唯一关系仅仅是其握手动作被HTTP服务器解析为Upgrade请求，接下来WebSocket协议就可以在客户端和服务器之间进行更大数据量的交互，从而支持内容实时传送和实时在线游戏等。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[scale=0.5]{websocket_http.png}
+\caption{WebSocket协议和HTTP协议的关系}
+\end{figure}
+
+具体来说，WebSocket和HTTP协议都是应用层的协议，那么它们之间的关系是WebSocket在建立握手连接时，数据是通过HTTP协议传输的，但是在建立连接之后，真正的数据传输阶段是不需要HTTP协议参与的。
+
+另外，在客户端和服务器基于WebSocket进行通信时，WebSocket客户端和服务器之间的通信不必在接收到客户端的请求之后才开始，这样就可以在WebSocket连接打开时直接来回传输信息，从而在客户端和服务器之间实现实时双向通信。
+
+\begin{compactenum}
+\item 打开握手
+
+
+客户端与服务端建立握手，发送如下信息：
+
+\begin{lstlisting}[language=PHP]
+GET /echo HTTP/1.1
+Upgrade: WebSocket
+Connection: Upgrade
+Host: http://www.example.org:8088
+Origin: http://www.example.com
+\end{lstlisting}
+
+服务端会发回如下的响应：
+
+\begin{lstlisting}[language=PHP]
+HTTP/1.1 101 Web Socket Protocol Handshake
+Upgrade: WebSocket
+Connection: Upgrade
+WebSocket-Origin: http://www.example.org
+WebSocket-Location: ws://www.example.org:8088/echo
+\end{lstlisting}
+
+\item 数据传递
+\item 关闭握手
+\end{compactenum}
+
+
+
+在浏览器和服务器之间实现的WebSocket通信可以使用标准的TCP 80端口，从而避免数据包被防火墙过滤。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[scale=0.5]{websocket_process.png}
+\caption{WebSocket通讯}
+\end{figure}
+
+下图显示了WebSocket通信过程的主要的三个步骤，以及在客户端和服务器端分别进行的操作。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics{websocket_communication.png}
+\caption{WebSocket通信过程}
+\end{figure}
 
 
 
 
+
+\subsection{server}
+
+
+
+
+
+\subsection{client}
+
+下面的websocket客户端代码websocket.html在浏览器中运行时，使用 websocket 自动连接，发送一个消息，显示接受到的服务器响应，然后关闭连接。
+
+WebSocket协议引入了新的URI——ws和wss来解密和加密连接，其中：
+
+\begin{compactitem}
+\item 使用ws://开头的URI表示Websocket协议；
+\item 使用wss://开头的URI表示安全的WebSocket协议。
+\end{compactitem}
+
+\begin{lstlisting}[language=PHP,basicstyle=\ttfamily\footnotesize]
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Test</title>
+    <script language="javascript" type="text/javascript">
+	//申请一个WebSocket对象，参数是需要连接的服务器端的地址
+        var wsUri = "ws://echo.websocket.org/";
+        var output;
+        function init() {
+            output = document.getElementById("output");
+            testWebSocket();
+        }
+        function testWebSocket() {
+            var websocket;
+            // WebSocket对象支持4个消息 onopen, onmessage, onclose和onerror
+            websocket = new WebSocket(wsUri);
+            // 所有的操作都是采用消息的方式触发的，
+            // 这样就不会阻塞UI，使得UI有更快的响应时间。
+            // 当客户端和WebSocketServer连接成功后，会触发onopen消息;
+            websocket.onopen = function (evt) {
+                onOpen(evt)
+            };
+            // 当Browser接收到WebSocketServer端发送的关闭连接请求时，就会触发onclose消息。
+            websocket.onclose = function (evt) {
+                onClose(evt)
+            };
+            // 当客户端接收到WebSocketServer发送过来的数据时，
+            // 就会触发onmessage消息，参数evt中包含server传输过来的数据;
+            websocket.onmessage = function (evt) {
+                onMessage(evt)
+            };
+            // 如果连接失败，发送/接收数据失败或者处理数据出现错误，
+            // 客户端会触发onerror消息
+            websocket.onerror = function (evt) {
+                onError(evt)
+            };
+        }
+        function onOpen(evt) {
+            writeToScreen("CONNECTED");
+            doSend("WebSocket rocks");
+        }
+        function onClose(evt) {
+            writeToScreen("DISCONNECTED");
+        }
+        function onMessage(evt) {
+            writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data + '</span>');
+            websocket.close();
+        }
+        function onError(evt) {
+            writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
+        }
+        function doSend(message) {
+            writeToScreen("SENT: " + message);
+            websocket.send(message);
+        }
+        function writeToScreen(message) {
+            var pre = document.createElement("p");
+            pre.style.wordWrap = "break-word";
+            pre.innerHTML = message;
+            output.appendChild(pre);
+        }
+        window.addEventListener("load", init, false);
+    </script>
+</head>
+<body>
+<h2>WebSocket Test</h2>
+<div id="output"></div>
+</body>
+</html>
+\end{lstlisting}
+
+客户端通过WebSocket API提供的如下4个事件进行编程：
+
+\begin{compactitem}
+\item onopen 建立连接后触发
+\item onmessage 收到消息后触发
+\item onerror 发生错误时触发
+\item onclose 关闭连接时触发
+\end{compactitem}
+
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+使用Wireshark监控到的上面WebSocket例子的数据，可以获得如下的数据：
+
+\begin{lstlisting}[language=PHP]
+GET / HTTP/1.1
+Upgrade: websocket
+Connection: Upgrade
+Host: echo.websocket.org
+Origin: null
+Pragma: no-cache
+Cache-Control: no-cache
+Sec-WebSocket-Key: Qcgtb1RJ6HceeTRLPFux/A==
+Sec-WebSocket-Version: 13
+Sec-WebSocket-Extensions: x-webkit-deflate-frame
+Cookie: 
+__utma=9925811.951031439.1365242028.1365980711.1366068689.5; 
+__utmc=9925811; 
+__utmz=9925811.1365242028.1.1.utmcsr=websocket.org|utmccn=(referral)|utmcmd=referral|utmcct=/
+
+HTTP/1.1 101 Web Socket Protocol Handshake
+Upgrade: WebSocket
+Connection: Upgrade
+Sec-WebSocket-Accept: 84Qpane33QhxOmcz8bGkFdE1AHk=
+Server: Kaazing Gateway
+Date: Tue, 16 Apr 2013 09:51:25 GMT
+Access-Control-Allow-Origin: null
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Headers: content-type
+Access-Control-Allow-Headers: authorization
+Access-Control-Allow-Headers: x-websocket-extensions
+Access-Control-Allow-Headers: x-websocket-version
+Access-Control-Allow-Headers: x-websocket-protocol
+\end{lstlisting}
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+\section{Frame}
+
+
+WebScoket协议中，数据以帧序列的形式传输。
+
+WebSocket没有试图在HTTP之上模拟server推送，而是直接在TCP之上定义了帧协议，因此WebSocket能够支持双向的通信。
+
+注意，所有的通信数据都是以”\textbackslash x00″开头以”\textbackslash xFF”结尾的，并且都是UTF-8编码的。
+
+这个过程类似于HTTP的建立连接过程，不同的是在建立连接之后，接下来客户端和服务端的任何交互都需要再有这个动作。
+
+\section{Mask}
+
+
+考虑到数据安全性，客户端向服务器传输的数据帧必须进行掩码处理。服务器若接收到未经过掩码处理的数据帧，则必须主动关闭连接。
+
+服务器向客户端传输的数据帧一定不能进行掩码处理。客户端若接收到经过掩码处理的数据帧，则必须主动关闭连接。
+
+针对上情况，发现错误的一方可向对方发送close帧(状态码是1002，表示协议错误)，以关闭连接。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[scale=0.5]{websocket_close.png}
+\caption{WebSocket关闭连接}
+\end{figure}
+
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+\section{API}
+
+
+
+
+
+
+\begin{lstlisting}[language=PHP]
+enum BinaryType { "blob", "arraybuffer" };
+[Constructor(DOMString url, optional (DOMString or DOMString[]) protocols), Exposed=Window,Worker]
+interface WebSocket : EventTarget {
+  readonly attribute DOMString url;
+
+  // ready state
+  const unsigned short CONNECTING = 0;
+  const unsigned short OPEN = 1;
+  const unsigned short CLOSING = 2;
+  const unsigned short CLOSED = 3;
+  readonly attribute unsigned short readyState;
+  readonly attribute unsigned long bufferedAmount;
+
+  // networking
+           attribute EventHandler onopen;
+           attribute EventHandler onerror;
+           attribute EventHandler onclose;
+  readonly attribute DOMString extensions;
+  readonly attribute DOMString protocol;
+  void close([Clamp] optional unsigned short code, optional DOMString reason);
+
+  // messaging
+           attribute EventHandler onmessage;
+           attribute BinaryType binaryType;
+  void send(DOMString data);
+  void send(Blob data);
+  void send(ArrayBuffer data);
+  void send(ArrayBufferView data);
+};
+\end{lstlisting}
+
+
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+
+
+\chapter{Framework}
+
+
+\section{Nodejs}
+
+WebSocket API对于客户端而言是基于事件的，对于服务端来说可以简单的理解为实现WebSocket协议的Socket Server开发。
+
+
+Nodejs可以直接使用JavaScript直接处理来自客户端的请求，这样如果服务端需要大量的业务逻辑开发，则可以直接使用node开发，因此通过node和websocket的结合可以开发出对实时性要求很高的Web应用（例如游戏、直播、股票、监控、IM等）。
+
+NWS（Node-Websocket-Server）的原理是使用node实现websocket draft-76的协议并进行封装，同时对外提供API来方便其他应用程序调用。
+
+NWS继承了node的http.Server的事件和方法，这样就可以简化服务端的编程，同时可以处理HTTP请求。
+
+为了实现连接之间的通信和消息的广播，NWS实现了一个manager类来给每一个连接创建一个id，然后在内存中维护一个连接链表，并提供了上线和下线的自动管理。
+
+NWS还提供对以下几个事件的接口，这样对于WebSocket的服务器端开发，用户已经不需要考虑WebSocket协议的实现。
+
+
+\begin{compactitem}
+\item listening 当服务器准备好接受客户端请求时
+\item request 当一个http 请求发生时触发
+\item stream
+\item close
+\item clientError
+\item error
+\end{compactitem}
+
+NWS几乎有着和客户端浏览器上WebSocket API一样的事件，只有对连接、断开连接、消息、错误等事件进行处理，这样应用的开发就非常的灵活。
+
+另外，node的事件驱动的机制保证了系统的高效，可以使用EventEmitter定义自己的事件触发。
+
+
+
+
+
+下面是一个node-websocket-server提供的一个server的例子：
+
+\begin{lstlisting}[language=PHP]
+var sys = require("sys");
+var ws = require('../lib/ws/server');
+
+var server = ws.createServer({debug: true});
+
+//handle websocket requests
+server.addListener("connection",function(conn){
+	conn.send("Connection: "+conn.id);
+	conn.addListener("message",function(message){
+		conn.broadcast("<"+conn.id+"> "+message);
+		if(message == "error"){
+			conn.emit("error","test");
+		}
+	});
+});
+
+server.addListener("error",function(){
+	console.log(Array.prototype.join.call(arguments,", "));
+});
+
+server.addListener("disconnected",function(conn){
+	server.broadcast("<"+conn.id+"> disconnected");
+});
+
+server.listen(8000);
+\end{lstlisting}
+
+接下来，在WebSocket客户端和服务器端打通后就可以搭建一个实时监控系统，并且直接与linux自身监控工具的结合，将监控结果通过websocket直接更到网页上。
+
+\begin{compactitem}
+\item 首先，使用node.js捕获iostat的输出
+
+\begin{lstlisting}[language=PHP,basicstyle=\ttfamily\footnotesize]
+var sys = require("sys"),
+    http = require("http"),
+    fs = require("fs"),
+    path = require("path"),
+    ws = require('../lib/ws/server');
+
+var sys = require('sys');
+var spawn = require('child_process').spawn;
+var mon = spawn("iostat", ["-I", "5"]);
+sys.puts("starting");
+\end{lstlisting}
+
+对于命令行输出可以使用spawn来捕获，并且在Web应用中充分利用Linux的各种系统工具。
+
+具体来说，spawn可以根据参数启动一个进程，同时可以对stdout, stderr, exit code进行捕获。
+
+当这些事件触发时，可以绑定我们的函数，同时捕获其输出。
+
+
+\item 其次，捕获iostat的数据并发送到WebSocket客户端（这里是浏览器）
+
+\begin{lstlisting}[language=PHP,basicstyle=\ttfamily\footnotesize]
+// Handle WebSocket Requests
+server.addListener("connection", function(conn) {
+    conn.send("Connection: " + conn.id);
+    sys.puts("Connection: " + conn.id);
+    mon.stdout.on('data', function(data) {
+        data = format_string(data);
+        sys.puts(data);
+        if (conn._state == 4)
+            conn.send("#mon:" + data + "");
+    });
+
+    conn.addListener("message", function(message) {
+        conn.broadcast("<" + conn.id + "> " + message);
+        conn.send("<" + conn.id + "> " + message);
+
+        if (message == "error") {
+            conn.emit("error", "test");
+        }
+    });
+});
+
+server.addListener("error", function() {
+    console.log(Array.prototype.join.call(arguments, ", "));
+});
+
+server.addListener("disconnected", function(conn) {
+    server.broadcast("<" + conn.id + "> disconnected");
+});
+
+server.listen(8080);
+\end{lstlisting}
+
+
+\item 最后，浏览器在收到消息后，对其进行简单的字符串处理，然后就可以直接在网页中输出。
+
+\begin{lstlisting}[language=PHP,basicstyle=\ttfamily\footnotesize]
+<!DOCTYPE html>
+<html>
+  <head>
+<title>WebSocket & Node.JS Test Page</title>
+<style type="text/css">
+#io_0,#io_1,#io_2 {background: blue; color: white; padding: 5px; }
+#io_3,#io_4,#io_5 {background: green; color: white; padding: 5px; }
+#io_6,#io_7,#io_8 {background: red; color: white; padding: 5px; }
+</style>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js" type="text/javascript" charset="utf-8"></script>
+</head>
+<body>
+
+<!-- KB/t tps  MB/s  us sy id   1m   5m   15m -->
+<table width=480>
+<thead><td colspan=3>disk</td><td colspan=3>cpu</td><td colspan=3>uptime</td></thead>
+<tbody id="iotitle"></tbody>
+<tbody id="iobody"></tbody>
+</tr>
+</table>
+
+<form id="msgForm">
+<input size=50 type="text" id="inputMessage" value="Hello" ><button
+id="sendButton">Send</button>
+</form>
+
+<pre id="output"></pre>
+
+<script>
+
+var output = $("#output");
+
+var log = function(s) {
+    if (document.readyState !== "complete") {
+        log.buffer.push(s);
+    } else {
+	output.prepend(s+"\n");
+    }
+}
+log.buffer = [];
+var hostname = location.hostname;
+var port = location.port;
+url = "ws://"+hostname+":"+port+"/echo";
+w = new WebSocket(url);
+w.onopen = function() {
+    log("open");
+    w.send("thank you for the request");
+}
+w.onmessage = function(e) {
+	var msg = e.data;
+	if(msg.match(/#mon/)) {
+		var monarr = msg.split(":")[1].split(" ");
+		var body = "";
+		for(var item in monarr) {
+			body += "<td id='io_"+item+"'>"+monarr[item]+"</td>"
+		}
+		$("#iobody").html(body);
+		//log(monarr[0]);
+		
+	}
+	else
+    	log(e.data);
+}
+w.onclose = function(e) {
+    log("closed");
+}
+function sendMessage() {
+	w.send($("#inputMessage").val());
+}
+window.onload = function() {
+	var headers = ["KB/t","tps","MB/s","user","system","idle","1m","5m","15m"];
+	for(var item in headers) {
+		$("#iotitle").append("<td>"+headers[item]+"</td>");
+	}
+    log(log.buffer.join("\n"));
+    $("#msgForm").submit(function(){
+    		event.preventDefault();
+    		sendMessage();
+    		$("#inputMessage").val("");
+	})
+}
+</script>
+
+</body>
+</html>
+\end{lstlisting}
+
+
+\end{compactitem}
+
+如果加上RGraph(基于html5)，则可以打造更加精美的实时展现。
 
 \section{Socket.IO}
 
@@ -355,6 +972,94 @@ server {
 Swoole框架额外提供了对WebSocket网络协议的支持，并附带一个基于websocket协议的webim系统。
 
 
+\subsection{Database}
+
+修改 apps/configs/db.php ，加入配置。
+
+
+\begin{compactitem}
+\item charset 制定数据库字符集
+\item setname 在连接服务器成功后发送\texttt{set names \$charset}
+\item persistent 启用MySQL数据库长连接
+\end{compactitem}
+
+
+\begin{lstlisting}[language=PHP]
+$db['master'] = array(
+    'type'    => Swoole\Database::TYPE_MYSQLi,
+    'host'    => "127.0.0.1",
+    'port'    => 3306,
+    'dbms'    => 'mysql',
+    'engine'  => 'MyISAM',
+    'user'    => "root",
+    'passwd'  => "root",
+    'name'    => "db_live",
+    'charset' => "utf8",
+    'setname' => true,
+    'persistent'  => true,
+);
+return $db;
+\end{lstlisting}
+
+\begin{compactitem}
+\item 单数据库，默认读取master配置
+
+\begin{lstlisting}[language=PHP]
+$this->db->query("select * from test");
+\end{lstlisting}
+
+\item 多数据库，读取制定的数据库配置
+
+\begin{lstlisting}[language=PHP]
+$this->db('other_db_config')->query("select * from test");
+\end{lstlisting}
+\end{compactitem}
+
+swoole框架支持3种驱动类型：
+
+\begin{compactenum}
+\item Swoole\textbackslash Database::TYPE\_MYSQL，使用mysql扩展
+\item Swoole\textbackslash Database::TYPE\_MYSQLi，使用mysqli扩展
+\item Swoole\textbackslash Database::TYPE\_PDO，使用PDO扩展
+\end{compactenum}
+
+\texttt{Swoole\textbackslash Database->insert}将一个数组插入到数据库表中。
+
+
+\begin{lstlisting}[language=PHP]
+function Swoole\Database->insert(array $record, string $table_name);
+$db->insert(array('field1' => 12345, 'field2' => 'hello'), 'test');
+\end{lstlisting}
+
+\begin{compactitem}
+\item \texttt{\$record}是一个键值对应数组，键务必要一一对应数据库表的字段。
+\item \texttt{\$table\_name}指定数据库表名。
+\item 操作成功返回true，失败返回false。
+\end{compactitem}
+
+\subsection{Data ORM}
+
+
+另外，可以使用\texttt{createModel('ModelName')->get(\$id)}和\texttt{createModel('ModelName')->all}来生成数据的ORM封装对象。
+
+
+\begin{lstlisting}[language=PHP]
+$content = $model->get(1); //这里返回的是一个Record对象
+$content->title='hello world'; //Update操作
+$content->save(); //保存操作，这时会执行SQL语句
+echo $content->addtime; //输入值
+$content->delete(); //删除此条数据
+
+$all = $model->all();        //这里返回一个RecordSet对象
+$all->filter('userid=2');    //增加一些限定条件，避免读取全部的数据库内容
+
+//遍历符合条件的所有数据库记录
+foreach($all as $obj)
+{
+    $obj->title = 'hello';
+    echo $obj->content;
+}
+\end{lstlisting}
 
 
 \subsection{Data Model}
@@ -519,29 +1224,6 @@ select * from user_info where id = 10001 limit 1
 \end{lstlisting}
 
 
-\subsection{Data ORM}
-
-
-另外，可以使用\texttt{createModel('ModelName')->get(\$id)}和\texttt{createModel('ModelName')->all}来生成数据的ORM封装对象。
-
-
-\begin{lstlisting}[language=PHP]
-$content = $model->get(1); //这里返回的是一个Record对象
-$content->title='hello world'; //Update操作
-$content->save(); //保存操作，这时会执行SQL语句
-echo $content->addtime; //输入值
-$content->delete(); //删除此条数据
-
-$all = $model->all();        //这里返回一个RecordSet对象
-$all->filter('userid=2');    //增加一些限定条件，避免读取全部的数据库内容
-
-//遍历符合条件的所有数据库记录
-foreach($all as $obj)
-{
-    $obj->title = 'hello';
-    echo $obj->content;
-}
-\end{lstlisting}
 
 
 \subsection{Controller}
@@ -684,71 +1366,6 @@ $redis['master'] = array(
 \item 使用\texttt{\$this->redis('master2')->get}实现多实例访问，框架会读取\texttt{\$this->config['redis']['master2']}作为配置
 \end{compactitem}
 
-
-\subsection{Database Setting}
-
-修改 apps/configs/db.php ，加入配置。
-
-
-\begin{compactitem}
-\item charset 制定数据库字符集
-\item setname 在连接服务器成功后发送\texttt{set names \$charset}
-\item persistent 启用MySQL数据库长连接
-\end{compactitem}
-
-
-\begin{lstlisting}[language=PHP]
-$db['master'] = array(
-    'type'    => Swoole\Database::TYPE_MYSQLi,
-    'host'    => "127.0.0.1",
-    'port'    => 3306,
-    'dbms'    => 'mysql',
-    'engine'  => 'MyISAM',
-    'user'    => "root",
-    'passwd'  => "root",
-    'name'    => "db_live",
-    'charset' => "utf8",
-    'setname' => true,
-    'persistent'  => true,
-);
-return $db;
-\end{lstlisting}
-
-\begin{compactitem}
-\item 单数据库，默认读取master配置
-
-\begin{lstlisting}[language=PHP]
-$this->db->query("select * from test");
-\end{lstlisting}
-
-\item 多数据库，读取制定的数据库配置
-
-\begin{lstlisting}[language=PHP]
-$this->db('other_db_config')->query("select * from test");
-\end{lstlisting}
-\end{compactitem}
-
-swoole框架支持3种驱动类型：
-
-\begin{compactenum}
-\item Swoole\textbackslash Database::TYPE\_MYSQL，使用mysql扩展
-\item Swoole\textbackslash Database::TYPE\_MYSQLi，使用mysqli扩展
-\item Swoole\textbackslash Database::TYPE\_PDO，使用PDO扩展
-\end{compactenum}
-
-\texttt{Swoole\textbackslash Database->insert}将一个数组插入到数据库表中。
-
-
-\begin{lstlisting}[language=PHP]
-function Swoole\Database->insert(array $record, string $table_name);
-$db->insert(array('field1' => 12345, 'field2' => 'hello'), 'test');
-\end{lstlisting}
-
-\begin{compactitem}
-\item \texttt{\$record}是一个键值对应数组，键务必要一一对应数据库表的字段。
-\item \texttt{\$table\_name}指定数据库表名。
-\item 操作成功返回true，失败返回false。
-\end{compactitem}
 
 
 
