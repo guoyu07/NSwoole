@@ -290,9 +290,128 @@ Access-Control-Allow-Headers: x-websocket-version
 Access-Control-Allow-Headers: x-websocket-protocol
 \end{lstlisting}
 
+
+
+\section{Request}
+
+用户可以自己构造支持GET或POST方法的WebSocket请求。
+
+\subsection{GET}
+
+
+\begin{lstlisting}[language=PHP]
+/**
+ * 简单的web请求
+ * @param string $preurl	链接目录主体
+ * @param string $paras	链接参数
+ * @param string $hostip 主机IP
+ * @param string $ports 主机端口
+ * @param integer $timeout 超时时间
+ */
+function SimpleWebSocket($preurl,$paras,$hostip,$ports=80,$timeout=30){
+	$getquery=$preurl . "?" . $paras;
+	// 连接服务器
+	$fp = fsocketopen($hostip,$ports,$errno,$errstr,30);
+	if(!$fp){
+		$errorinfo = "$errstr($errno)<br />\n";
+		return false;
+	}else{
+		$out = "GET /$getquery HTTP/1.1\r\n";
+		$out .= "Host: $hostip \r\n";
+		$out .= "Connection: Close\r\n\r\n";
+		fwrite($fp,$out);
+		while(!feof($fp)){
+			$backinfo = fgets($fp,1024);
+		}
+		fclose($fp);
+		return true;
+	}
+}
+\end{lstlisting}
+
+
+
 \begin{lstlisting}[language=PHP]
 
 \end{lstlisting}
+
+\subsection{POST}
+
+
+\begin{lstlisting}[language=PHP]
+/**
+ * 以WebSocket构造Post请求
+ * @param string $hostip 主机IP
+ * @param string $baseurl	链接目录主体
+ * @param array $postarray 请求参数和值，可以是字符串也可是数组
+ * @param interger $backtype 返回样式 1:输出返回内容
+ * @param string $aport 主机端口
+ * @param integer $timeout 超时时间
+ * @param string $charset 编码
+ */
+function PostWebSocket($hostip,$baseurl,$postarray,$aport=80,$backtype=1,$timeout=30,$charset="UTF-8"){
+	// 返回数据
+	$backinfo = ' ';
+	$backsign = false;
+	// 构造POST键值字符串
+	$postParas = ' ';
+	if(is_array($postarray) && (count($postarray)>0)){
+		$tempArray = array();
+		foreach($postArray as $key => $value){
+			$tempArray[] = $key .'=' . urlencode($value);
+		}
+		$postParas = implode('&',$tempArray);
+	}else{
+		$postParas=($postarray == ' ') ? exit('No params, please check it...') : $postarray;
+	}
+	$postLength=strlen($postParas);
+	// 开始创建请求
+	$fp=fsockopen($hostip,$aport,$errno,$errstr,$timeout);
+	if(!$fp){
+		$backinfo="$errstr($errno)<br />\n";
+	}else{
+		// 构造请求头
+		$header="POST /$baseurl HTTP/1.1\r\n";
+		$header .= "Host: $hostip \r\n";
+		$header .= "Pragma: no-cache\r\n";
+		$header .= "Referer: Http://$hostip/$baseurl\r\n";
+		$header .= "Content-Type: application/x-www-form-urlencoded; charset=$charset\r\n";
+		$header .= "Content-Length: $postLength\r\n";
+		$header .= "Connection: Close\r\n\r\n";
+		// 发送参数
+		$header .= $postParas ."\r\n";
+		fwrite($fp,$header);
+		while(!feof($fp)){
+			$backinfo = fgets($fp,1024);
+		}
+		fclose($fp);
+		$backsign=true;
+	}
+	// 返回结果
+	if($backtype){
+		return $backinfo;
+	}else{
+		return $backinfo;
+	}
+}
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+
+
 
 
 \section{Frame}
