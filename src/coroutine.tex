@@ -1,0 +1,419 @@
+\part{Coroutine}
+
+\chapter{Overview}
+
+
+Swoole 2.0增加了对协程（Coroutine）的支持，同时支持PHP5和PHP7，而且Swoole协程同时兼具了性能和并发能力。
+
+
+
+\begin{lstlisting}[language=PHP]
+<?php
+$server = new Swoole\Http\Server('127.0.0.1',9501,SWOOLE_BASE);
+
+$server->set(array('worker_num'=>1));
+
+$server->on('Request',function($request,$response){
+  $mysql = new Swoole\Coroutine\MySQL();
+  $res=$mysql->connect([
+      'host'=>'127.0.0.1',
+      'user'=>'root',
+      'password'=>'root',
+      'database'=>'test'
+   ]);
+   if($res==false){
+      $response->end('MySQL connect fail!');
+      return;
+   }
+   $ret=$mysql->query('select sleep(1)');
+   $response->end('swoole response is ok,result='.var_export($ret,true));
+});
+$server->start();
+\end{lstlisting}
+
+上述示例使用BASE模式创建一个Http服务器，并且设置进程为1，收到Http请求后执行一条select sleep(1) 语句，这条SQL模拟了阻塞IO，MySQL的服务器在1秒后返回结果。传统的同步阻塞程序，启动1个进程，毫无疑问只能提供1QPS的处理能力。而Swoole2.0协程不同，它虽然使用同步阻塞方式编写代码，但是底层确是异步IO，即使SQL语言执行时间很长，也可以提供很大的并发能力。
+
+
+启动程序：
+
+\begin{lstlisting}[language=PHP]
+$ php server.php
+$ ps aux|grep server.php
+htf      13142  0.6  0.2 328480 42268 pts/24   S+   10:17   0:00 php server.php
+\end{lstlisting}
+
+并发100测试
+
+
+
+\begin{lstlisting}[language=PHP]
+$ ab -c 100 -n 1000 http://127.0.0.1:9501/
+This is ApacheBench, Version 2.3 <$Revision: 1706008 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking 127.0.0.1 (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Completed 600 requests
+Completed 700 requests
+Completed 800 requests
+Completed 900 requests
+Completed 1000 requests
+Finished 1000 requests
+
+
+Server Software:        swoole-http-server
+Server Hostname:        127.0.0.1
+Server Port:            9501
+
+Document Path:          /
+Document Length:        85 bytes
+
+Concurrency Level:      100
+Time taken for tests:   10.061 seconds
+Complete requests:      1000
+Failed requests:        0
+Total transferred:      233000 bytes
+HTML transferred:       85000 bytes
+Requests per second:    99.39 [#/sec] (mean)
+Time per request:       1006.092 [ms] (mean)
+Time per request:       10.061 [ms] (mean, across all concurrent requests)
+Transfer rate:          22.62 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   1.3      0       7
+Processing:  1000 1004   4.7   1002    1020
+Waiting:     1000 1004   4.7   1002    1020
+Total:       1000 1005   5.8   1003    1026
+
+Percentage of the requests served within a certain time (ms)
+  50%   1003
+  66%   1004
+  75%   1005
+  80%   1006
+  90%   1016
+  95%   1020
+  98%   1022
+  99%   1022
+ 100%   1026 (longest request)
+\end{lstlisting}
+
+并发1000测试
+
+
+
+\begin{lstlisting}[language=PHP]
+$ ab -c 1000 -n 2000 http://127.0.0.1:9501/
+This is ApacheBench, Version 2.3 <$Revision: 1706008 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking 127.0.0.1 (be patient)
+Completed 200 requests
+Completed 400 requests
+Completed 600 requests
+Completed 800 requests
+Completed 1000 requests
+Completed 1200 requests
+Completed 1400 requests
+Completed 1600 requests
+Completed 1800 requests
+Completed 2000 requests
+Finished 2000 requests
+
+
+Server Software:        swoole-http-server
+Server Hostname:        127.0.0.1
+Server Port:            9501
+
+Document Path:          /
+Document Length:        19 bytes
+
+Concurrency Level:      1000
+Time taken for tests:   2.025 seconds
+Complete requests:      2000
+Failed requests:        153
+   (Connect: 0, Receive: 0, Length: 153, Exceptions: 0)
+Total transferred:      344098 bytes
+HTML transferred:       48098 bytes
+Requests per second:    987.66 [#/sec] (mean)
+Time per request:       1012.493 [ms] (mean)
+Time per request:       1.012 [ms] (mean, across all concurrent requests)
+Transfer rate:          165.94 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    6   6.6      8      18
+Processing:     8  166 336.4     68    2006
+Waiting:        8  166 336.4     68    2006
+Total:          8  173 340.6     83    2022
+
+Percentage of the requests served within a certain time (ms)
+  50%     83
+  66%     87
+  75%     89
+  80%     90
+  90%   1021
+  95%   1087
+  98%   1092
+  99%   1093
+ 100%   2022 (longest request)
+\end{lstlisting}
+
+Length: 153 错误是因为MySQL服务器已经无法支持这么大并发了，拒绝了swoole的连接，因此会抛出错误。
+
+为了进行对比，使用PHP7的PHP-FPM进行对比测试，修改php-fpm.conf将php-fpm进程设置为1。测试的代码与Swoole的完全一致，也是执行同一个sleep的SQL语句。 因为php-fpm是真正的同步阻塞，耗时太长，因此只能使用并发10请求100的方式测试。
+
+
+
+
+\begin{lstlisting}[language=PHP]
+<?php
+$db = new mysqli;
+$db->connect('127.0.0.1', 'root', 'root', 'test');
+$result = $db->query("select sleep(1)");
+
+if ($result) 
+{
+    print_r($result->fetch_all());
+}
+else die(sprintf("MySQLi Error: %s", mysqli_error($link)));
+\end{lstlisting}
+
+使用apache ab进行压力测试如下：
+
+
+\begin{lstlisting}[language=PHP]
+$ ab -c 10 -n 100 http://127.0.0.1/mysql.php
+This is ApacheBench, Version 2.3 <$Revision: 1706008 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking 127.0.0.1 (be patient).....done
+
+
+Server Software:        nginx/1.10.0
+Server Hostname:        127.0.0.1
+Server Port:            80
+
+Document Path:          /mysql.php
+Document Length:        69 bytes
+
+Concurrency Level:      10
+Time taken for tests:   100.086 seconds
+Complete requests:      100
+Failed requests:        0
+Total transferred:      24100 bytes
+HTML transferred:       6900 bytes
+Requests per second:    1.00 [#/sec] (mean)
+Time per request:       10008.594 [ms] (mean)
+Time per request:       1000.859 [ms] (mean, across all concurrent requests)
+Transfer rate:          0.24 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.1      0       0
+Processing:  1002 9558 1636.0  10008   10011
+Waiting:     1002 9558 1636.0  10008   10011
+Total:       1002 9558 1636.0  10008   10011
+
+Percentage of the requests served within a certain time (ms)
+  50%  10008
+  66%  10009
+  75%  10009
+  80%  10009
+  90%  10009
+  95%  10010
+  98%  10010
+  99%  10011
+ 100%  10011 (longest request)
+\end{lstlisting}
+
+
+Swoole服务器，即使SQL语句要执行1秒才返回结果，并发100的测试中也提供了100qps的能力，并发1000的测试中QPS为987，但MySQL服务器已经无法提供服务了。而同步阻塞的php-fpm处理并发10请求100的测试花费了100秒才完成，QPS为1。
+
+
+
+PHP开发者可以基于Swoole2.0协程以同步的方式编写代码，底层自动进行协程调度，转变为异步IO，解决了传统异步编程嵌套回调的问题。
+
+与Go语言协程不同，Swoole协程完全不需要开发者添加任何额外的关键词，直接以过去最传统的同步阻塞模式编写代码，底层自动进行协程调度实现异步IO，使并发编程变得非常简单。
+
+与Node.js（ES6+）、Python等语言使用yield/generator、async/await的实现方式相比，Swoole协程无需修改代码添加额外的关键词。
+
+与Go语言的goroutine相比，Swoole协程是内置式的，应用层代码无需添加额外的go关键词来启动协程，只需要使用封装好的协程客户端即可，使用更简单。
+
+
+
+Swoole协程的IO组件在底层内置了超时机制，不需要使用复杂的select/chan/timer实现客户端超时。
+
+Swoole底层内置的协程客户端组件包括：udpclient、tcpclient、httpclient、redisclient、mysqlclient，基本涵盖了开发者常用的几种通信协议。
+
+协程组件只能在服务器的onConnect、onRequest、onReceive、onMessage 回调函数中使用。
+
+\begin{lstlisting}[language=PHP]
+<?php
+$server = new Swoole\Http\Server('127.0.0.1',9501);
+
+/*
+ * 触发on request事件时，swoole会开辟一个协程栈，对协程栈进行初始化
+ */
+$server->on('Request',function($request,$response){
+   $tcp_cli = new Swoole\Coroutine\Client(SWOOLE_SOCK_TCP);
+   /*
+    * client在调用connect函数后，swoole会将PHP上下文信息保存到当前栈内，
+    * 然后将协程挂起，待确认连接成功后，触发epoll事件，然后协程切换，
+    * 恢复PHP上下文信息，返回结果，继续执行PHP代码
+    */
+    if($tcp_cli->connect('127.0.0.1',9906)===false){
+        $response->end('connect server failed'.);
+        return;
+    }
+    $tcp_cli->send('test for the coroutine');
+    /*
+     * client在调用recv函数后，swoole会将PHP上下文信息保存到当前栈内
+     * 然后将协程挂起待后端svr回包，触发epoll事件，然后协程切换，恢复
+     * PHP上下文信息，返回结果，继续执行PHP代码。
+     * 如果后端在设定的超时时间内，未能回包，返回false，client的errCode定为110
+     */
+     $ret = $tcp_cli->recv(100);
+     $tcp_cli->close();
+     if ($ret) {
+         $response->end(' swoole response is ok');
+     } else {
+         $response->end(" recv failed error: {$tcp_cli->errCode}");
+     }
+});
+$server->start();
+\end{lstlisting}
+
+\section{UDP Client}
+
+
+\begin{lstlisting}[language=PHP]
+<?php
+$udp_cli = new Swoole\Coroutine\Client(SWOOLE_SOCK_UDP);
+$ret = $udp_cli->connect('127.0.0.1',9906);
+$udp_cli->send('test for the coro');
+
+$ret = $udp_cli->recv(100);
+$udp_cli->close();
+
+if($ret) {
+   $response->end('swoole response is ok');
+} else {
+   $response->end("recv failed error: {$client->errCode}");
+}
+\end{lstlisting}
+
+\section{MySQL Client}
+
+
+
+\begin{lstlisting}[language=PHP]
+<?php
+$swoole_mysql = new Swoole\Coroutine\MySQL();
+$swoole_mysql->connect([
+   'host'=>'127.0.0.1',
+   'user'=>'user',
+   'password'=>'pass',
+   'database'=>'test'
+]);
+$res=$swoole_mysql->query('select sleep(1)');
+\end{lstlisting}
+
+\section{Redis Client}
+
+
+\begin{lstlisting}[language=PHP]
+<?php
+$redis = new Swoole\Coroutine\Redis();
+$redis->connect('127.0.0.1',6379);
+$val = $redis->get('key');
+\end{lstlisting}
+
+\section{HTTP Client}
+
+
+\begin{lstlisting}[language=PHP]
+<?php
+$cli = new Swoole\Coroutine\Http\Client('127.0.0.1',80);
+$cli->setHeader([
+   'Host'=>'localhost',
+   'User-Agent'=>'Chrome/49.0.2587.3',
+   'Accept'=>'text/html,application/xhtml+xml,application/xml',
+   'Accept-Encoding'=>'gzip'
+]);
+$cli->set(['timeout'=>1]);
+$cli->get('/index.php');
+echo $cli->body;
+$cli->close();
+\end{lstlisting}
+
+
+
+\section{Link Pool}
+
+Swoole2.0官方默认的实例是短连接的，在请求处理完毕后就会切断redis或mysql的连接。实际项目可以使用连接池实现复用。
+
+实现原理也很简单，使用SplQueue，在请求到来时判断资源队列中是否有可用的连接，如果有直接拿来复用。如果没有就创建一个新的连接。在连接使用完毕后再讲它重新放回到队列，此连接就可以被其他协程复用。
+
+
+
+\begin{lstlisting}[language=PHP]
+<?php
+$count = 0;
+$pool = new SplQueue();
+$server = new Swoole\Http\Server('127.0.0.1', 9501, SWOOLE_BASE);
+
+$server->on('Request', function($request, $response) use(&$count, $pool) {
+    if (count($pool) == 0) {
+        $redis = new Swoole\Coroutine\Redis();
+        $res = $redis->connect('127.0.0.1', 6379);
+        if ($res == false) {
+            $response->end("redis connect fail!");
+            return;
+        }
+        $pool->push($redis);
+        $count++;
+    }
+    $redis = $pool->pop();
+    $ret = $redis->set('key', 'value');
+    $response->end("swoole response is ok, count = $count, result=" . var_export($ret, true));
+    $pool->push($redis);
+});
+
+$server->start();
+\end{lstlisting}
+
+此连接池代码也可用于其他协程客户端包括MySQL、HttpClient、TCPClient等。
+
+协程没办法像异步回调程序一样可以对请求进行排队，然后通过事件驱动触发，没办法等到资源池可用。因此不太方便限制连接的数量。生产环境建议对连接池最大值做限制，操作最大连接数后，要拒绝客户端发起新的请求。
+
+
+\begin{lstlisting}[language=PHP]
+if (count($pool) == 0) {
+    if ($count > 100) {
+        $response->status(500);
+        $response->end("<h1>连接池已满，无法提供服务，请稍后重试</h1>");
+    }
+}
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=PHP]
+
+\end{lstlisting}

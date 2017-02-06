@@ -1,0 +1,77 @@
+\part{Changelog}
+
+
+\chapter{Overview}
+
+
+\section{1.5.7}
+
+
+\begin{compactitem}
+\item 不再使用clock\_gettime，不需要如此高精度的时间
+\item 增加onWorkerStart/onWorkerStop回调函数
+\item 增加onMasterConnect/onMasterClose回调函数
+\item 可配置poll线程与worker进程间的通信方式
+\end{compactitem}
+
+
+\section{1.5.8}
+
+\begin{compactitem}
+\item 增加swoole\_connection\_list接口，用于遍历所有连接
+\item 增加swoole\_connection\_info接口，用于获取连接信息
+\item swoole\_server\_send/swoole\_server\_close不再需要传入from\_id参数
+\item buffer功能测试通过，已增加到setting中
+\item 提供对tcp\_keepalive的支持
+\item 增加日志模块，记录运行时的警告和错误信息
+\end{compactitem}
+
+\section{1.5.9}
+
+
+\begin{compactitem}
+\item 修复onClose回调\$fd/\$from\_id错误的bug
+\item swoole\_framework框架提供WebSocket支持
+\end{compactitem}
+
+\section{1.6.0}
+
+\begin{compactitem}
+\item 优化UDP实现方式，实现高并发高可靠的UDP Server
+\item 可以切换IPC模式，队列或者Unsock
+\item close事件处理优化，解决丢失close的bug
+\item 使用全局内存池来分配内存
+\end{compactitem}
+
+\section{1.9.1}
+
+
+\begin{compactitem}
+\item 修复使用addProcess添加用户进程后无法正常shutdown的问题
+\item 异步读写文件函数Async::writeFile增加FILE\_APPEND选项支持
+\item 异步读写文件函数在进行read、write时对文件加锁
+\item 修复Async::write函数未设置回调函数发生崩溃的问题
+\item 重构Async::write函数追加模式的实现，使用O\_APPEND
+\item 重构reopen log file特性，收到SIGRTMIN信号后重新打开日志文件并重定向标准输出
+\item 修复Table迭代器遗漏数据的问题
+\item 回调函数onPacket客户端信息参数增加服务器来源端口server\_port
+\item 回调函数onReceive和connection\_info方法即将移除对UDP的支持，UDP端口使用这2个特性时会抛出E\_DEPRECATED警告信息
+\item 服务器连接迭代器Connection\textbackslash Iterator增加ArrayAccess接口
+\item 修复Server在进程管道缓存区塞满后连续发送大数据导致死锁的问题（重要问题）
+\item 修复PHP7下启用opcache导致崩溃的问题
+\item 修复taskWaitMulti在超时后无法返回执行成功任务结果的问题
+\item 定时器使用MONOTONIC单调时间，解决系统时间修改导致定时器错乱的问题
+\end{compactitem}
+
+
+连接ArrayAccess用法的用法如下：
+
+\begin{lstlisting}[language=PHP]
+<?php
+$serv->on('connect',function($serv,$fd,$reactor_id){
+    echo "IP Address: ".$serv->connections[$fd]['remote_ip']."\n";
+    if(isset($serv->connections[6])){
+        echo "connection 6 is exists.\n";
+    }
+});
+\end{lstlisting}
