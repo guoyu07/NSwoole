@@ -90,11 +90,11 @@ WebSocket并不基于HTTP连接，而是在一个单独的TCP连接上提供了�
 
 作为一个独立的基于TCP协议的通信协议，WebSocket和HTTP的唯一关系仅仅是其握手动作被HTTP服务器解析为Upgrade请求，接下来WebSocket协议就可以在客户端和服务器之间进行更大数据量的交互，从而支持内容实时传送和实时在线游戏等。
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[scale=0.5]{websocket_http.png}
-\caption{WebSocket协议和HTTP协议的关系}
-\end{figure}
+%\begin{figure}[htbp]
+%\centering
+%\includegraphics[scale=0.5]{websocket_http.png}
+%\caption{WebSocket协议和HTTP协议的关系}
+%\end{figure}
 
 具体来说，WebSocket和HTTP协议都是应用层的协议，那么它们之间的关系是WebSocket在建立握手连接时，数据是通过HTTP协议传输的，但是在建立连接之后，真正的数据传输阶段是不需要HTTP协议参与的。
 
@@ -132,19 +132,19 @@ WebSocket-Location: ws://www.example.org:8088/echo
 
 在浏览器和服务器之间实现的WebSocket通信可以使用标准的TCP 80端口，从而避免数据包被防火墙过滤。
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[scale=0.5]{websocket_process.png}
-\caption{WebSocket通讯}
-\end{figure}
+%\begin{figure}[htbp]
+%\centering
+%\includegraphics[scale=0.5]{websocket_process.png}
+%\caption{WebSocket通讯}
+%\end{figure}
 
 下图显示了WebSocket通信过程的主要的三个步骤，以及在客户端和服务器端分别进行的操作。
 
-\begin{figure}[htbp]
-\centering
-\includegraphics{websocket_communication.png}
-\caption{WebSocket通信过程}
-\end{figure}
+%\begin{figure}[htbp]
+%\centering
+%\includegraphics{websocket_communication.png}
+%\caption{WebSocket通信过程}
+%\end{figure}
 
 
 
@@ -434,11 +434,11 @@ WebSocket没有试图在HTTP之上模拟server推送，而是直接在TCP之上�
 
 针对上情况，发现错误的一方可向对方发送close帧(状态码是1002，表示协议错误)，以关闭连接。
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[scale=0.5]{websocket_close.png}
-\caption{WebSocket关闭连接}
-\end{figure}
+%\begin{figure}[htbp]
+%\centering
+%\includegraphics[scale=0.5]{websocket_close.png}
+%\caption{WebSocket关闭连接}
+%\end{figure}
 
 
 
