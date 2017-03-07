@@ -4,6 +4,42 @@
 \chapter{Overview}
 
 
+\begin{compactitem}
+\item event-driven
+\item asynchronous non-blocking
+\item multi-thread reactor
+\item multi-process worker
+\item multi-protocol
+\item millisecond timer
+\item async mysql client
+\item built-in http/websocket/http2 server
+\item async http/websocket client
+\item async redis client
+\item async task
+\item async read/write file system
+\item async dns lookup
+\item support IPv4/IPv6/UnixSocket/TCP/UDP
+\item support SSL/TLS encrypted transmission
+\end{compactitem}
+
+swoole从1.5版本开始建立起严格的版本更新记录。平均迭代时间为每半年一个大版本，每2-4周一个小版本。
+
+\begin{compactitem}
+\item alpha 特性预览版本，表示开发计划中的任务已完成，进行开放预览，可能会存在较多BUG
+\item beta 测试版本，表示已经可以用于开发环境测试，可能存在BUG
+\item rc[1-n] 候选发布版本，表示进入发布周期，正在做大范围的测试，在此期间仍可能发现BUG
+\item stable 稳定版，表示此版本已完毕，可正式投入使用
+\end{compactitem}
+
+单双数版本的意义如下：
+
+\begin{compactitem}
+\item 单数版本为特性新增版本，主要工作是新增功能特性、代码重构、结构调整。可能会带来一些BUG。
+\item 双数版本为问题修复版本，主要工作是修复现有的已知问题、提升性能、完善细节。稳定性更高
+\end{compactitem}
+
+
+
 \section{1.5.7}
 
 
@@ -43,6 +79,856 @@
 \item 使用全局内存池来分配内存
 \end{compactitem}
 
+
+\section{1.6.1}
+
+\begin{compactitem}
+\item 增加configure可选参数\texttt{-\/-enable-msgqueue}，启用此参数后将使用消息队列作为IPC方式
+\item 解决reload后，worker分配错误的bug
+\item 抢占式分配bug解决
+\item 解决刷warn的问题
+\end{compactitem}
+
+
+\section{1.6.2}
+
+
+\begin{compactitem}
+\item 增加swoole\_event\_add函数，可以将任意一个socket添加到swoole的主事件循环内
+\item 增加swoole\_event\_del函数，删除添加的socket
+\item 增加examples/proxy.php实例代码，全异步非阻塞的代理服务器
+\item 增加examples/async\_mysql.php，实现异步非阻塞的MySQL调用
+\end{compactitem}
+
+1.6.2新增的reactor操作接口，使得redis、mysql、mongodb等网络接口整合swoole\_server中，实现全异步化高性能服务器
+
+
+\section{1.6.3}
+
+\begin{compactitem}
+\item SWOOLE\_MODE\_BASE模式重构，由于PHP在多线程下容易发生内存错误，BASE模式修改为单进程单线程模式
+\item swoole\_client->on/swoole\_event\_add可以用于任何环境
+\item swoole\_server增加面向对象风格
+\item swoole\_connection\_info可用于UDP协议
+\item 解决php,gcc低版本可能出现的段错误问题
+\item 解决swoole扩展导致fpm段错误的问题
+\end{compactitem}
+
+
+\section{1.6.4}
+
+
+\begin{compactitem}
+\item 内存池修改为自动扩容
+\item AsyncTask接口
+\item 低版本系统bug解决
+\item 提供swoole\_lock锁
+\end{compactitem}
+
+\section{1.6.5}
+
+
+\begin{compactitem}
+\item 启动100个worker进程时可能crash的问题解决
+\item 支持MacOS
+\item 定时器重构，支持1ms粒度，并可用于Worker进程
+\end{compactitem}
+
+
+\section{1.6.6}
+
+
+
+\begin{compactitem}
+\item 对FreeBSD/MacOS下的kqueue做了优化
+\item 默认使用epoll/kqueue作为事件轮询
+\item swoole\_client内存泄露问题解决
+\item 对主动发起close做优化，无需主进程再次发送通知
+\item task\_worker使用UnixSock-UDP通信方式
+\item 对Epoll的RST事件优化
+\end{compactitem}
+
+\section{1.6.7}
+
+\begin{compactitem}
+\item 线程的数量加入限制最大不超过CPU数的4倍
+\item 进程数量超过CPU数的100倍后会抛一一条警告信息
+\item 修复onStart不能addtimer的bug
+\item 修复php5.5下异步mysql编译失败问题
+\item poll\_thread\_num改为reactor_num
+\end{compactitem}
+
+\section{1.6.8}
+
+
+\begin{compactitem}
+\item 解决某些系统下worker进程段错误问题
+\item 增加swoole\_server\_taskwait函数
+\item 解决UDP多进程在FDMOD模式下的错误问题
+\end{compactitem}
+
+\section{1.6.9}
+
+\begin{compactitem}
+\item 增加到pecl.php.net，可通过pecl install swoole来安装
+\item 修复task模块的bug
+\item 增加基于unixsock的争抢模式实现
+\end{compactitem}
+
+\section{1.6.10}
+
+
+\begin{compactitem}
+\item 简化异步客户端，当onReceive时不再需要调用\$cli->recv，直接拿到数据。当onClose发生时也不需要再次调用\$cli->close
+connect支持填写域名，swoole会自动进行DNS查询
+\item 当connect失败时，如果直接仍然调用send/recv，会抛出错误
+\item connection信息中增加connect\_time和last\_time，记录连接的时间和最后一次发送数据的时间
+\item 增加TCP长连接心跳机制支持
+\item 重构data\_buffer功能
+\end{compactitem}
+
+\section{1.6.11}
+
+
+\begin{compactitem}
+\item task\_worker启动时也会调用onWorkerStart，可以用worker\_id参数来区分task\_worker还是普通的worker
+\item 增加onWorkerError回调，用来捕获worker进程异常退出
+\item 使用 \$server->setting属性可以得到运行时配置数组
+\item swoole\_server::task和taskwait可以指定发送给哪个task\_worker进程
+\item 添加对字节流协议的分包支持，参见 examples/length\_check\_server.php \& length\_check\_client.php
+\item 增加 package\_eof 参数，等同于 data\_eof
+\end{compactitem}
+
+
+\section{1.6.13}
+
+
+\begin{compactitem}
+\item 修复异常连接导致服务器死循环的BUG
+\item 修复swReactorEpoll\_del抛出WARN的BUG
+\end{compactitem}
+
+
+
+\section{1.7.0 \& 1.6.12}
+
+
+
+\begin{compactitem}
+\item reactor线程与writer线程合并
+\item 对send优化，加入out\_buffer机制
+\item 增加AIO异步读写文件的API
+\item 增加DNS异步查询函数
+\item swoole\_client在php-fpm或apache mod\_php下支持长连接
+\item 增加非Server模式下的异步定时器支持
+\item 定时器优化
+\item 修复bug
+\item 增加sendfile支持
+\item onReceive的data变量使用引用方式，减少一次内存复制
+\item 消息队列模式增加定时器的支持
+\item 增加signalfd的支持，使信号事件也加入到Reactor
+\end{compactitem}
+
+\section{1.7.1}
+
+\begin{compactitem}
+\item 增加unix sock监听的支持
+\item 增加swoole\_event\_set函数
+\item client对out\_buffer的支持
+\item 修复swoole\_server->send后close发生错误的问题
+\item 可动态配置IPC方式, 选择消息队列/UnixSock管道
+\end{compactitem}
+
+\section{1.7.2}
+
+\begin{compactitem}
+\item 增加swoole\_process模块
+\item 支持标准输入输出重定向
+\item 修复MacOS/FreeBSD/低版本Linux下时钟无法使用的BUG
+\item Task进程可以单独配置为使用消息队列通信
+\item 修复心跳检测未关闭socket的BUG
+\end{compactitem}
+
+\section{1.7.3}
+
+
+\begin{compactitem}
+\item 增加swoole\_process->exec接口
+\item 修复连接后立即关闭的BUG
+\item 优化swoole\_server->send发送大包
+\item 修复dispatch\_mode = 3不生效问题
+\item 修复length\_check错误问题
+\end{compactitem}
+
+\section{1.7.4}
+
+\begin{compactitem}
+\item reload对task\_worker有效
+\item 当管道写满是进行poll等待可写，而不是丢包
+\item 增加对clang编译器的支持
+\item 修复shutdown过程task\_worker/manager非正常结束问题
+\item Task进程支持定时器
+\item 修复UDP发送错误的BUG
+\item 增加SSL-server的支持
+\end{compactitem}
+
+\section{1.7.5}
+
+
+\begin{compactitem}
+\item 增加swoole\_table
+\item 增加swoole\_client->sendfile()
+\item 增加swoole\_server->stats()函数，用于统计服务器网络请求数
+\item 增加worker和master之间unix的内存缓存
+\item 增加swoole\_process支持使用消息队列做进程间通信
+\item 增加swoole\_client构造函数增加第3个参数，作为长连接的ID
+\item 增加swoole\_process::daemon函数
+\item 增加Append写的支持，swoole\_async\_write的offset为-1表示追加到文件末尾
+\item 增加swoole\_server->gettimer()获取所有定时器设置
+\item 增加task进程单独设置max\_requset/ipc\_mode的支持
+\item 优化worker和master之间的通信
+\item 优化TCP短链接，性能提升50\%
+\item 修复connection\_info在UDP客户端下端口号错误问题
+\item 修复swoole\_server->master\_pid某些情况下不可用问题
+\item 修复定时器第一次设置超过当前时间2倍的BUG
+\item 修复异步任务结束后进程无法自动退出问题
+\item 修复swoole\_event\_add重复添加相同fd时出错的问题
+\item 修复swoole\_process->\$pid不可用的问题，在任何环境下均可获取到正确的pid
+\item 移除onMasterClose/onMasterConnect
+\end{compactitem}
+
+\section{1.7.6}
+
+1.7.6是针对1.7.5的BUG修复版。
+
+\begin{compactitem}
+\item 增加php.ini中可配置aio\_thread\_num，AIO的线程数量
+\item 增加Manager进程退出的监控
+\item 修复onConnect/onClose无法正确投递到对应worker的BUG
+\item 修复消息队列模式发生死循环的BUG
+\item 修复swoole\_table->set发生死循环问题
+\item 修复enable-ringbuffer后执行错误的问题
+\item 移除enable-msgqueue编译参数
+\item 修复定时器第一次触发时间错误的BUG
+\item sendfile增加nopush的设置
+\end{compactitem}
+
+
+\section{1.7.7}
+
+\begin{compactitem}
+\item 增加对cygwin环境的支持，仅支持SWOOLE\_BASE模式
+\item 修复swoole\_process子进程接收不到信号的问题
+\item 定时器重构，使用EventLoop的超时机制来实现定时器
+\item 定时器增加after接口，一次性时间回调
+\item onClose事件调整为在close前触发
+\item 支持在swoole\_server的worker进程中创建swoole_process子进程
+\item 默认package\_max\_length为2M
+\item 支持用户设置task临时文件目录
+\end{compactitem}
+
+\section{1.7.8}
+
+
+\begin{compactitem}
+\item 修复swoole\_http\_server::on未执行父类方法的问题
+\item 修复swoole\_http\_server中COOKIE无法读取的问题
+\item 增加swoole\_http\_server对POST RawContent的支持
+\item after接口可以传入一个用户参数
+\item swoole\_client->recv和onReceive的data变量修改为零拷贝
+\item swoole\_client->onReceive改为ET模式
+\item 修复swoole\_table->set无法设置超过64K字符串的问题
+\item 重构swoole\_table，解决foreach可能存在的数据同步问题
+\item 增加在php.ini中的配置项swoole.display\_errors，用于关闭错误信息
+\item swoole\_timer\_after/swoole\_server->after接口增加一个可选参数，可以将一个自定义变量传递到回调函数中
+\item 修复open\_length\_check连接内存缓冲区未重置的BUG
+\item 增加dispatch\_mode=4，按照客户端IP取摸分配worker进程
+\item 事件回调函数中捕获到异常错误等级由E\_WARNING调整为E\_ERROR
+\end{compactitem}
+
+\section{1.7.9}
+
+
+\begin{compactitem}
+\item 增加内置WebSocket协议支持
+\item swoole\_process在构造之后就可以访问到pipe的值
+\item 增加swoole\_process::signal/swoole\_async\_signal用于异步信号
+\item 增加swoole\_server->addProcess，可以添加用户定义的子进程到Server
+\item 增加swoole\_process::name方法
+\item 增加swoole\_server::listen方法
+\item 增加swoole\_server::sendMessage和onPipeMessage用于操作底层管道通信
+\item 增加swoole\_event\_write函数
+\item 增加swoole\_process->close方法
+\item 增加user/group配置项，可以修改Worker进程的用户和组
+\item swoole\_server的task/finish方法可以直接发送任意PHP变量，扩展内对非字符类型自行串化/反串化
+\end{compactitem}
+
+\section{1.7.10}
+
+
+
+\begin{compactitem}
+\item 修复UDP在reload之后发生死循环的BUG
+\item 修复Http服务器POST发生段错误的问题
+\item 增加swoole\_http\_server->push方法，用于向WebSocket客户端推送消息
+\item 增加Http请求头信息到swoole\_http\_server合并全局变量\$\_SERVER中
+\item 增加swoole\_process::wait的非阻塞设置
+\item 修复合并全局变量未替换中横线为下划线的BUG
+\item 修复swoole\_http\_request的key变为大写的BUG
+\item 修复pecl脚本无法直接安装的问题
+\item 修复swoole\_server->addProcess在未使用管道时发送段错误的问题
+\item 修复swoole\_server->sendMessage失败的问题
+\item 修复swoole\_process子进程无法打开标准输入的问题
+\item 增加swoole\_server->sendto方法，用于向任意IP:PORT发送UDP包
+\item 优化swoole\_client/swoole\_event性能，减少hashtable查找
+\item 优化swoole\_http\_server性能
+\item 修复ARM平台编译错误的问题，1.7.10版本可用于ARM平台
+\item 修复task\_tmpdir设置导致投递任务失败的问题
+\end{compactitem}
+
+
+\section{1.7.11}
+
+\begin{compactitem}
+\item 修复UDP服务器调用connection\_info发生错误的问题
+\item 修复task临时文件磁盘空间未释放的BUG
+\item 修复WebSocket服务器onOpen事件回调中执行close导致进程崩溃的问题
+\item 修复在task进程中调用sendMessage导致进程崩溃的问题
+\item 修复websocket服务器握手时Sec-WebSocket-Accept串偶发错误的问题
+\item 修复Http服务器在开启KeepAlive时连续POST数据发生coredump的问题
+\item 修复MacOS/FreeBSD在大量并发时出现ENOBUFF错误
+\item 增加Http服务器分片(chunk)发送的支持
+\item 增加pcre检测，如果未安装pcre库将关闭swoole\_table的foreach遍历接口
+\end{compactitem}
+
+\section{1.7.12}
+
+
+\begin{compactitem}
+\item 修复TCP缓存区发生错误的问题
+\item 客户端recv方法未启用waitall, buffer\_size最大限制为64K
+\item 删除无用的错误日志
+\end{compactitem}
+
+
+\section{1.7.13}
+
+
+\begin{compactitem}
+\item 服务器session\_list尺寸调整为1M
+\item connection\_info中的from\_fd, from\_port 修改为 server\_fd, server\_port
+\item 服务器只在监听多个端口，connection\_info返回 server\_fd, server\_port
+\item connection\_info增加对IPv6 TCP协议的支持
+\item connection\_info增加socket\_type项表示客户端的类型
+\item 优化Http服务器性能
+\item 优化WebSocket服务器性能
+\item 修复文件描述符过多后Accept发生死循环的BUG
+\item 修复reload期间某个worker进程退出导致管理进程死循环的BUG
+\item 增加swoole\_client->getsockname用于获取本地socket的ip和port
+\item 增加swoole\_client->getpeername用于获取远程对端socket的ip和port
+\item 增加swoole\_client->sendto可向任意UDP服务器发送数据包
+\end{compactitem}
+
+
+\section{1.7.14}
+
+
+\begin{compactitem}
+\item WebSocket服务器onOpen回调函数第2个参数由\$fd调整为\$request对象
+\item WebSocket服务器onHandShake回调函数中执行close不回调onOpen
+\item PHP5.3不再需要脚本末尾手工加swoole\_event\_wait
+\item 增加swoole\_server->tick和swoole\_timer\_tick函数
+\item 修复onReceive数据合并失效的BUG
+\item Http服务器增加gzip压缩的支持
+\item swoole\_server->send支持发送swoole\_buffer对象
+\item Http服务器允许发送空body的response
+\end{compactitem}
+
+
+
+\section{1.7.15}
+
+
+
+\begin{compactitem}
+\item 修复swoole\_client的waitall参数失效问题
+\item 修复swoole\_table发生死循环的BUG
+\item 禁用swoole\_websocket\_server->send方法
+\item 增加swoole\_table->incr/decr原子自增/自减方法
+\item BASE模式支持向任意FD发送数据
+\item 修复Accept失败返回Too Many Connection重复打印日志的问题
+\item 设置dispatch\_mode = 1, 3 后关闭onClose/onConnect事件回调
+\item 修复低版本Linux下Accept未设置阻塞的问题
+\item 允许Worker进程内设置非系统保留信号
+\item 增加open\_eof\_split配置，使用EOF检测可以支持自动分包
+\end{compactitem}
+
+
+\section{1.7.16}
+
+
+\begin{compactitem}
+\item 修复swoole\_server->addtimer与tick定时器冲突的BUG
+\item 增加server统计项request\_count和worker\_request\_count
+\item 移除swoole底层对对象资源属性的依赖，直接读取指针，提升性能
+\item 解决心跳线程无法强制杀掉遗留连接的问题
+\item 增加server的连接迭代器，可以使用foreach遍历服务器的所有连接
+\item 增加客户端自动协议处理的支持，可以使用open\_eof\_split/open\_length\_check配置
+\item 增加SWOOLE\_PACKET标志位用于支持TCP透传模式
+\item 优化dispatch\_mode=3模式，提升任务分配的效率
+\item 增加http服务器multipart-form和上传文件的支持
+\item 修复task\_max\_request参数失效的问题
+\item 增加http服务器请求的query\_string
+\end{compactitem}
+
+
+
+\section{1.7.17}
+
+
+\begin{compactitem}
+\item 使用pthread\_barrier\_wait代替sleep加快程序启动速度
+\item 修复swoole\_client异步模式下send数据不完整的BUG
+\item 移除task\_dispatch\_mode配置项
+\item 默认task进程的max\_request改为0,不自动退出进程
+\item Http服务器上传文件使用mktemp系统调用
+\item 修复EOF\_check特性导致主进程coredump的问题
+\item 增加pipe\_buffer\_size配置项，用于调整管道通信的缓存区尺寸
+\item 管道内存缓存区默认尺寸调整为32M
+\item Http服务器Header最大长度由128调整为8192
+\item 修复swoole\_process->pop发生错误的问题
+\item 修复taskwait接口在MacOS/CygWin环境下超时的问题
+\item 增加swoole\_table->exist方法
+\end{compactitem}
+
+
+
+\section{1.7.18}
+
+
+\begin{compactitem}
+\item 增加onPacket事件回调函数，使UDP包与TCP分离
+\item 修复EOF协议处理时发生错误的问题
+\item 兼容PHP7版本
+\item 修复swoole\_http\_response->header导致内存泄漏的问题
+\item 长度检测协议允许0长度无包体的请求
+\item swoole\_table支持有符号整数
+\item 支持REUSEPORT特性，短连接TCP服务性能提升200\%（仅支持Linux 3.9.0或更高版本）
+\item 修复swoole\_client/swoole\_timer内存泄漏问题
+\item 增加enable\_unsafe\_event配置，允许在dispatch\_mode=1/3时开启Connect/Close事件
+\item 增加swoole\_process::setaffinity方法用于设置CPU亲和性
+\item swoole\_client->set增加socket\_buffer\_size配置
+\item 增加swoole\_server->exist方法，用于检测\$fd对应的TCP客户端连接是否存在
+\item 函数风格的API即将移除
+\item swoole\_server->handler方法即将移除
+\item addtimer/deltimer/swoole\_timer\_add/swoole\_timer\_del接口即将移除，请使用tick/after定时器
+\end{compactitem}
+
+
+\section{1.7.19}
+
+
+
+\begin{compactitem}
+\item 增加swoole\_atomic模块，支持原子整数操作
+\item 修复定时器在系统休眠后无法恢复运行的BUG
+\item 修复SSL服务器在慢速网络中发送超过30K大包失败的问题
+\item UDP/UDP6/UNIX\_DGRAM协议支持64K大包
+\item 修复addtimer/tick定时器在BASE模式下无法使用的问题
+\item 修复swoole\_process子进程退出时消息队列被自动销毁的问题
+\item 增加SWOOLE\_BASE模式下对addProcess的支持
+\item 修复SWOOLE\_KEEP发生段错误的问题
+\end{compactitem}
+
+
+
+\section{1.7.20}
+
+
+
+\begin{compactitem}
+\item swoole\_http\_request->rawContent() 函数在任意情况下都可以取到POST Body
+\item 修复swoole\_process::useQueue()第一个参数为0时消息队列泄漏的问题
+\item 增加swoole\_http\_server的DELETE包体支持，可以在\$req->post中得到请求参数
+\item 增加swoole\_client对SSL/TLS隧道加密的支持
+\item 优化RINIT/RSHUTDOWN代码，减少扩展在php-fpm环境下的性能消耗
+\item 优化SSL的onConnect事件顺序，在SSL握手完成后回调onConnect函数
+\item 增加swoole\_server/swoole\_client的SSL方法配置
+\item 修复swoole\_websocket\_server未设置onRequest时coredump的问题
+\item 增加swoole\_server->getClientInfo/getClientList别名
+\item 修复swoole\_server->finish在BASE模式下不可用的问题
+\item 禁止在onStart回调函数中调用swoole\_server->task/taskwait
+\item 增加swoole\_client设置SSL证书的支持
+\item 修复swoole\_http\_server内存泄漏的问题
+\end{compactitem}
+
+
+\section{1.7.21}
+
+\begin{compactitem}
+\item 修复swoole\_client同步模式在服务器主动关闭时发生内存泄漏的问题
+\item 修复POST/文件上传超过8K无法处理的问题
+\item 增加swoole\_http\_response->sendfile方法，用于发送大文件
+\item 修复swoole\_client启用SSL/TLS隧道加密后close发生coredump的问题
+\item 增加swoole\_server->getSocket/swoole\_client->getSocket将Socket导出为sockets扩展资源
+\item 增加UDP多播(udp multicast)示例
+\item 修复MIPS平台编译错误的问题
+\item 修复UDP大包在dispatch\_mode=1/3时Worker进程发生死锁的问题
+\item 增加swoole\_client->sleep/wakeup方法，用于暂停/恢复数据接收事件
+\item 修复UDP大包中间数据异常问题（重要BUG）
+\end{compactitem}
+
+
+\section{1.7.22}
+
+
+\begin{compactitem}
+\item 修复PHP7下HttpServer发生内存泄漏的问题
+\item 修复PHP7下core dump的问题
+\item 修复swoole\_table->del出现错误的问题（重要问题）
+\item 增加swoole\_client->send/recv的socket参数选项
+\item 增加swoole\_async\_set新配置socket\_dontwait/socket\_buffer\_size/enable\_signalfd
+\item 增加SSL/TLS客户端证书验证支持
+\item 修复tick定时器长时间运行整形溢出导致停止运行的问题
+\item 增加swoole\_websocket\_server->exist用于判断一个fd是否为正确的连接
+\item 增加原生MySQL异步客户端
+\end{compactitem}
+
+
+\section{1.8.0}
+
+
+\subsection{客户端}
+
+
+\begin{compactitem}
+\item 增加原生异步MySQL客户端
+\item 增加原生异步Redis客户端，基于Redis官方提供的hiredis库
+\item 增加原生异步Http客户端
+\item 增加原生异步WebSocket客户端支持
+\item 重构底层swClient，异步TCP客户端实现放到swoole内核中
+\item 增加swoole\_client->reuse属性，SWOOLE\_KEEP长连接模式下标识是否为复用的连接
+\end{compactitem}
+
+\subsection{服务器端}
+
+
+\begin{compactitem}
+\item 重构websocket服务器代码，底层与length\_check协议复用相同的处理函数，增强稳定性
+\item 增加Task进程对tick/after定时器的支持，底层基于高精度的setitimer+信号实现
+\item 保存构造函数中传入的host、port参数到swoole\_server对象属性
+\item 增加多端口多协议的支持（重要更新）
+\item 增加swoole\_server->defer函数用于延时执行一些函数
+\item 增加swoole\_server->close强制切断连接的选项，设置第二个参数会true会清空发送队列并立即切断连接
+\end{compactitem}
+
+\begin{example}
+多端口多协议示例
+\begin{lstlisting}[language=PHP]
+<?php
+$serv = new swoole_server("0.0.0.1",9501);
+
+$port2 = $serv->listen("127.0.0.1",9502,SWOOLE_SOCK_TCP);\
+
+$port2->set(array(
+       'open_length_check'=>true,
+       'package_length_type'=>'N',
+       'package_length_offset'=>0,
+       'package_body_offset'=>4,
+       'package_max_length'=>2000000,//协议最大长度
+   )
+);
+
+$port2->on('receive',function(swoole_server $serv, $fd, $from_id, $data){
+   echo "ServerPort2\n";
+});
+
+$serv->on('connect',function($serv,$fd,$from_id){
+   echo "[#" . posix_getpid() . "]\tClient@[$fd:$from_id]: Connect.\n";
+});
+
+$serv->on('receive',function(swoole_server $serv, $fd,$from_id,$data){
+   echo "[#" . $serv->worker_id . "]\tClient[$fd]: $data\n";
+   if($serv->send($fd,"hello\n")==false){
+      echo "error\n";
+   }
+});
+
+$serv->on('close',function($serv,$fd,$from_id){
+   echo "[#" . posix_getpid() . "]\tClient@[$fd:$from_id]: Close.\n";
+});
+\end{lstlisting}
+\end{example}
+
+swoole\_table保存Key值会增加内存占用，如table的size为100万，KEY值存储会增加64M内存占用
+
+\begin{compactitem}
+\item 增加swoole\_table对key值的存储，foreach遍历table时可以获取到key值
+\item 更改swoole\_table的key对比模式，从crc32比对改为直接进行字符串对比
+\item 更新utlist.h库到1.9.9版本
+\item 修复启用消息队列后发生double-free问题
+\item 重构定时器，修复after、tick定时器偶然出现的core dump的问题
+\item 定时器使用最小堆数据结构，插入/删除时间复杂度为log(N)
+\item 修复swoole\_process::signal在PHP7下发生core dump的问题
+\item 修复swoole\_async\_write在PHP7下发生core dump的问题
+\item 移除未支持的特性相关历史遗留代码，如heartbeat\_ping、dispatch\_key\_type等
+\item 移除swoole\_server->addtimer、swoole\_server->deltimer、swoole\_server->gettimer
+\item 移除swoole\_timer\_add、swoole\_timer\_del
+\item 移除swoole\_server的onTimer事件
+\item 移除task\_worker\_max配置及相关特性代码
+\item 移除swoole\_server->handler方法
+\end{compactitem}
+
+
+从1.8.0-rc2开始，swoole\_process只支持cli模式。
+
+\section{1.8.1}
+
+
+\begin{compactitem}
+\item 增加核心类的命名空间别名
+\item 增加swoole\_server->protect方法，用于保护某些连接不被心跳线程切断
+\item 增加swoole\_websocker\_server::pack和swoole\_websocker\_server::unpack静态方法，用于手工打包/解包websocket数据帧
+\item 修复日志打印标准输出被关闭不断产生SIGPIPE信号导致死循环的问题
+\item 修复MacOS环境下启用openssl编译失败的问题
+\item 增加对redis订阅和发布消息的支持
+\item 修复多端口监听未设置监听端口回调发生core dump的问题
+\item 修复异步Client发生内存泄漏的问题
+\item 修复在其他事件回调函数中关闭异步Client偶然发生core dump的问题
+\item 增加swoole\_http\_client对gzip内容压缩的支持
+\end{compactitem}
+
+
+使用命名空间类风格，需要修改php.ini，增加swoole.use\_namespace=On开启。使用命名空间类名后，旧式的下划线风格类名将不可用
+
+
+\begin{lstlisting}[language=PHP]
+use Swoole\Http\Server;
+use Swoole\Http\Request;
+use Swoole\Http\Response;
+
+$serv = new Server('127.0.0.1',9501);
+
+$serv->on('Request',function(Request $req, Response $resp){
+    var_dump($req->header,get_class($req));
+    $resp->send("<h1>Hello Swoole</h1>");
+});
+
+$serv->start();
+\end{lstlisting}
+
+
+\section{1.8.2}
+
+
+\begin{compactitem}
+\item 增加对Http2的支持（重要更新）
+\item 修复WebSocket服务器接收超过64K数据发生崩溃的问题
+\item 修复多端口监听未设置回调函数导致程序崩溃的问题
+\item 提升SSL/TLS隧道加密的安全等级，现在默认使用TLS1.2/ECDHA_RSA加密算法
+\item 修复onFinish事件回调内存泄漏的问题
+\item 修复BASE模式下task finish无法使用的问题
+\item 增加log\_level设置，可以选择错误日志的等级
+\end{compactitem}
+
+
+\section{1.8.3}
+
+
+\begin{compactitem}
+\item 增加swoole\_server->getLastError方法，用于获取最近一次操作的错误码
+\item 增加Http2协议下对COOKIE的支持
+\item 增加Http2协议下对form-data的支持
+\item 修复reactor\_num设置超过CPU核数时发生崩溃的问题
+\item 修复Swoole\textbackslash Client->on设置的回调函数发生内存泄漏问题
+\item 修复打开文件未关闭并且task\_worker\_num设置过大超过256导致服务器程序崩溃
+\item 增加全异步服务器安全reload的支持
+\item 增加http客户端对COOKIE的支持
+\item 增加http客户端对SSL/TLS加密的支持
+\item 修复BASE模式下启用心跳检测检测后使用swoole\_client出现异常的问题
+\end{compactitem}
+
+\section{1.8.4}
+
+\begin{compactitem}
+\item 同步客户端禁止使用Swoole\textbackslash Client->on注册异步回调函数
+\item 修复Swoole\textbackslash Http\textbackslash Server解析form-data格式数据发生错误的问题
+\item 修复Swoole\textbackslash Redis回调函数内存泄漏问题
+\item 修复swoole\_mysql\_query回调函数内存泄漏问题
+\item 修复Swoole\textbackslash Http\textbackslash Client内存泄漏问题
+\item 修复Swoole\textbackslash Client连接关闭时发生崩溃的问题
+\item 修复Swoole\textbackslash Client->onError时未设置errCode的问题
+\item 修复swoole\_async\_writefile函数未设置回调函数发生coredump的问题
+\item 增加Swoole\textbackslashClient对异步unixsock的支持
+\item 增加Swoole\textbackslash Http\textbackslash Request对高精度请求时间的支持
+\end{compactitem}
+
+
+
+\section{1.8.5}
+
+
+\begin{compactitem}
+\item 修复swoole\_mysql\_query执行insert语句时insert\_id错误的问题（严重问题）
+\item 修复Swoole\textbackslash WebSocket\textbackslash Server接收小于4字节数据时发生崩溃的问题（严重问题）
+\item 增加swoole\_mysql\_query对bigint自增ID的支持
+\item 增加swoole\_mysql\_query嵌套回调出现致命错误的问题
+\item 增加execinfo模块检测避免在不支持execinfo平台无法编译通过的问题
+\item 修改Swoole\textbackslash Server回调函数存储方式，使用对象属性保存callback
+\item 修复Swoole\textbackslash WebSocket\textbackslash Server多协议下发生崩溃的问题
+\item 禁止异步Swoole\textbackslash Client使用SWOOKE\_KEEP长连接设置
+\item 修复同步Swoole\textbackslash Client内存泄漏问题
+\item 增加Swoole\textbackslash Client绑定地址和端口的支持
+\item 增加Swoole\textbackslash Server->stats方法的Task消息队列数量和字节计数
+\item 修复Swoole\textbackslash Http\textbackslash Client连接关闭时发生崩溃的问题
+\item 修复Swoole\textbackslash Server->taskwait操作导致tasking\_num计数错误问题
+\end{compactitem}
+
+\section{1.8.6}
+
+
+1.8.6版本是一个重要的BUG修复版本，主要修复了PHP7环境下HttpServer、TCPClient、HttpClient、Redis等客户端存在的内存泄漏、崩溃问题。
+
+另外，1.8.6版本对MySQL进行了彻底重构，提供了全新的面向对象风格API，彻底移除了对PHP的mysqli和mysqlnd的依赖。
+
+建议所有swoole开发者升级至此版本。
+
+
+\begin{compactitem}
+\item 修复Swoole\textbackslash Server->set方法在关联索引数组的Value为NULL时错误地更改了zval类型
+\item 更新Swoole\textbackslash Server->task方法第三个参数可以直接传入回调函数
+\item 修复Swoole\textbackslash WebSocket\textbackslash Server收到恶意请求时崩溃的问题，提升稳定性
+\item 重构Swoole\textbackslash MySQL客户端，移除对mysqli和mysqlnd的依赖，提供了面向对象风格的API
+\item 调整Swoole\textbackslash Http\textbackslash Client为内置，不需要额外的编译参数开启
+\item 调整Swoole\textbackslash Client和Swoole\textbackslash Http\textbackslash Client内存回收的时机，在连接发送关闭时回收内存资源
+\item 增加swoole\_async\_dns\_lookup查询结果缓存
+\item 优化Swoole\textbackslash WebSocket\textbackslash Server性能，减少两次内存复制
+\item 移除Swoole\textbackslash Http\textbackslash Server->setGlobal方法
+\item 修复在Task进程中执行close时onClose回调函数未在Worker进程中执行的问题
+\item 修复Swoole\textbackslash Table删除KEY后未清空数据的问题
+\item 增加SSL、TLS证书链的支持
+\item 移除gcc aio
+\item 修复异步文件读写函数的相关问题
+\end{compactitem}
+
+
+
+\begin{example}
+异步MySQL客户端
+\begin{lstlisting}[language=PHP]
+<?php
+$db = new swoole_mysql;
+$server = array(
+   'host'=>'192.168.56.102',
+   'user'=>'root',
+   'password'=>'test',
+   'database'=>'test',
+);
+
+$db->connect($server,function($db,$r){
+   if($r===false){
+      var_dump($db->connect_errno,$db->connect_error);
+      die;
+   }
+   
+   $sql='show tables';
+   $db->query($sql,function(swoole_mysql $db,$f){
+      global $s;
+      if($r === false){
+         var_dump($db->error,$db->errno);
+      }elseif($r === true){
+         var_dump($db->affected_rows,$db->insert_id);
+      }
+      var_dump($r);
+      $db->close();
+   });
+});
+\end{lstlisting}
+\end{example}
+
+
+
+\section{1.8.7}
+
+
+\begin{compactitem}
+\item 修复Swoole\textbackslash Http\textbackslash Server在PHP7下崩溃的问题（zdata请求数据内存释放问题）
+\item 修复Swoole\textbackslash Http\textbackslash Client的WebSocket模块未设置Header发生崩溃的问题
+\item 修复Swoole\textbackslash MySQL对unixsock服务器端主机地址解析错误的问题
+\item 修复Swoole\textbackslash Http\textbackslash Client在低于Linux-2.6.18版本内核发生崩溃的问题
+\item 修复Swoole\textbackslash MySQL在PHP7下嵌套回调发生崩溃的问题
+\item 更新Swoole\textbackslash Server最大监听端口数，由128调整为60000
+\item 更新Swoole\textbackslash Server主线程使用epoll或kqueue
+\item 修复swoole\_async\_dns\_lookup命中缓存时发生崩溃的问题
+\item 修复Swoole\textbackslash Table迭代器在并发读写时发生数据读取错误的问题
+\item 修复Swoole\textbackslash Timer::after接口初始化添加时执行顺序错乱问题
+\item 增加Swoole\textbackslash Timer::exists接口用于查询定时器是否存在
+\item 修复Swoole\textbackslash WebSocket\textbackslash Server::exist方法用于判断其他TCP端口时总是返回false的问题
+\item 优化Swoole\textbackslash Server关闭服务时Task进程的结束速度
+\end{compactitem}
+
+
+
+\section{1.8.8}
+
+
+\begin{compactitem}
+\item 增加Swoole\textbackslash Server\textbackslash Port->getSocket方法，可获取监听端口的socket句柄
+\item 增加\texttt{Swoole\textbackslash Server->getClientInfo()['close\_errno']}属性，可获取连接关闭的错误码
+\item 修复Swoole\textbackslash Server->close无法关闭未完成握手的SSL客户端连接的问题
+\item 修复Swoole\textbackslash Server->taskwait在BASE模式下无法使用的问题
+\item 增加Swoole\textbackslash Event命名空间与类风格的API
+\item 修复Swoole\textbackslash MySQL客户端无法支持超过250字段查询语句的问题
+\item 增加Swoole\textbackslash MySQL字符集设置支持
+\item 修复Swoole\textbackslash Server->task第三参数传入Callback在PHP7下发生崩溃的问题
+\item 修复Swoole\textbackslash Http\textbackslash Server由于外部引用request对象后用户取消请求导致崩溃的问题
+\item 增加Swoole\textbackslash Server->taskWaitMulti可以并发执行多个任务
+\item 修复Swoole\textbackslash Http\textbackslash Client的WebSocket客户端接收数据粘包的问题
+\item 增加Swoole\textbackslash Server\textbackslash Port对Request、Open、HandShake、Message回调函数设置支持
+\item 增加Swoole\textbackslash Client->getPeerCert方法
+\item 增加Swoole\textbackslash Client->pause和Swoole\textbackslash Client->resume
+\item 增加Swoole\textbackslash Http\textbackslash Client更多的客户端设置选项
+\item 修复Swoole\textbackslash Http\textbackslash Request->files在PHP7下为NULL时被外部引用发生崩溃的问题
+\end{compactitem}
+
+
+
+之前的版本taskwait只支持同时执行一个任务，在一些场景下需要同时并发执行多个Task，并返回结果集。最新的1.8.8版本增加了并发Task的支持，可以解决此类问题。
+
+
+\begin{example}
+异步MySQL客户端
+\begin{lstlisting}[language=PHP]
+<?php
+$tasks[] = mt_rand(1000,9999);
+$tasks[] = mt_rand(1000,9999);
+//等待所有Task结果返回,超时为10s
+var_dump($tasks);
+
+$result = $serv->taskWaitMulti($tasks,10.0);
+var_dump($result);
+\end{lstlisting}
+\end{example}
+
+
+\section{1.8.9}
+
+
+\begin{compactitem}
+\item 增加命名空间别名设置，现在命名空间类和非命名空间类可以同时使用
+\item 修复Swoole\textbackslash MySQL连接某些版本MySQL服务器发生错误的问题
+\item 修复Swoole\textbackslash Http\textbackslash Client在回调函数中关闭连接发生崩溃的问题
+\item 增加Swoole\textbackslash Http\textbackslash Client->addFile接口，支持POST文件
+\item 修复Swoole\textbackslash Http\textbackslash Server在PHP7环境上传文件时偶然发生崩溃的问题
+\item 修复Swoole\textbackslash MySQL在PHP7下内存泄漏问题
+\item 修复Swoole\textbackslash Redis在PHP7下内存泄漏问题
+\item 修复Swoole\textbackslash Http\textbackslash Client在PHP7下内存泄漏问题
+\item 修复Swoole\textbackslash Server启用SSL加密未输入证书密码导致崩溃的问题
+\item 增加Swoole\textbackslash Http\textbackslash Client对没有ContentLength的响应体的支持
+\item 增加-\/-with-openssl编译选项，可指定openssl库的路径
+\end{compactitem}
+
+
 \section{1.9.1}
 
 
@@ -75,3 +961,41 @@ $serv->on('connect',function($serv,$fd,$reactor_id){
     }
 });
 \end{lstlisting}
+
+
+
+\section{2.0.5}
+
+
+计划实现如下的支持协程的回调方法：
+
+\begin{compactitem}
+\item onConnect
+\item onReceive
+\item onPacket
+\item onRequest
+\item onHandShake
+\end{compactitem}
+
+
+\section{2.0.6}
+
+计划实现如下的支持协程的回调方法：
+
+\begin{compactitem}
+\item onMessage
+\end{compactitem}
+
+\section{2.0.7}
+
+计划实现如下的支持协程的回调方法：
+
+\begin{compactitem}
+\item onOpen
+\item Redis\textbackslash Server->handler
+\end{compactitem}
+
+
+
+
+

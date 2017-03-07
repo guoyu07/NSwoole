@@ -1,0 +1,152 @@
+\part{Swoole 2.0}
+
+\chapter{Overview}
+
+除了异步IO的支持之外，Swoole为PHP多进程的模式设计了多个并发数据结构和IPC通信机制，可以大大简化多进程并发编程的工作。其中包括了并发原子计数器，并发HashTable，Channel，Lock，进程间通信IPC等丰富的功能特性。
+
+
+\section{Coroutine}
+
+
+Swoole2.0开始内置协程，并且提供了具备协程能力IO的接口（统一在命名空间Swoole\textbackslash Coroutine\textbackslash *）。
+
+Swoole提供的协程支持使得可以使用完全同步的PHP代码实现异步程序，而且PHP代码无需额外增加任何关键字，Swoole在底层自动进行协程调度来实现异步。
+
+
+协程通过多个入口点来实现在某些位置挂起和恢复执行来泛化用于非抢占多任务的子程序。
+
+
+协程可以理解为纯用户态的线程，其通过协作而不是抢占来进行切换。相对于进程或者线程，协程所有的操作都可以在用户态完成，创建和切换的消耗更低。Swoole可以为每一个请求创建对应的协程，根据IO的状态来合理的调度协程，这会带来了以下优势：
+
+\begin{compactenum}
+\item 开发者可以无感知的用同步的代码编写方式达到异步IO的效果和性能，避免了传统异步回调所带来的离散的代码逻辑和陷入多层回调中导致代码无法维护。
+
+\item 同时由于swoole是在底层封装了协程，所以对比传统的php层协程框架，开发者不需要使用yield关键词来标识一个协程IO操作，所以不再需要对yield的语义进行深入理解以及对每一级的调用都修改为yield，这极大的提高了开发效率。
+
+\end{compactenum}
+
+Swoole的协程API针对TCP、UDP等主流协议client进行了封装，例如UDP、TCP、HTTP、MySQL和Redis等。
+
+
+Swoole的协程支持可以满足大部分开发者的需求。对于私有协议，开发者可以使用Swoole的协程的TCP或者UDP接口方便地进行封装。
+
+
+Swoole协程支持基于swoole\_server或swoole\_http\_server进行开发，而且支持在onRequest、onReceive和onConnect等事件回调函数中使用协程。
+
+在编译Swoole2.0时添加\texttt{-\/-enable-coroutine}编译参数启用协程，例如：
+
+\begin{lstlisting}[language=bash]
+$ phpize
+$ ./configure --with-php-config={path-to-php-config} --enable-coroutine
+$ make
+$ sudo make install
+\end{lstlistin}
+
+编译通过之后，swoole server就切换到协程模式，而且在开启协程模式后，swoole\_server和swoole\_http\_server会为每一个请求创建对应的协程，可以在onRequest、onReceive和onConnect等事件回调中使用协程客户端。
+
+在Swoole\textbackslash Server的set方法中增加了一个配置参数max\_coro\_num，用于配置一个worker进程最多同时处理的协程数目。
+
+
+
+随着worker进程处理的协程数目的增加，其占用的内存也会增加，为了避免超出php的memory\_limit限制，可以根据实际业务的压测结果设置max\_coro\_num，默认为3000。
+
+
+\begin{lstlisting}[language=PHP]
+<?php
+$client = new Swoole\Coroutine\Client(SWOOLE_SOCK_TCP);
+$client->connect('127.0.0.1',8888,0.5);
+//调用connect将触发协程切换
+
+$client->send('Hello world from swoole');
+//调用recv将触发协程切换
+$ret = $client->recv();
+$client->close();
+echo $ret;
+\end{lstlistin}
+
+
+当代码执行到connect()和recv()函数时，swoole会触发进行协程切换，此时swoole可以去处理其他的事件或者接受新的请求。当此client连接成功或者后端服务回包后，swoole server会恢复协程上下文，代码逻辑继续从切换点开始恢复执行。开发者整个过程不需要关心整个切换过程。
+
+
+协程使得原有的异步逻辑同步化，但是在协程的切换是隐式发生的，所以在协程切换的前后不能保证全局变量以及static变量的一致性。
+
+
+不允许在以下场景中触发协程切换：
+
+\begin{compactitem}
+\item 析构函数
+\item 魔术方法\_\_call()
+\end{compactitem}
+
+gcc 4.4下如果在编译swoole的时候（即make阶段），出现gcc warning: \texttt{dereferencing pointer ‘v.327’ does break strict-aliasing rules, dereferencing type-punned pointer will break strict-aliasing rules}，需要手动编辑Makefile，将\texttt{CFLAGS = -Wall -pthread -g -O2}替换为\texttt{CFLAGS = -Wall -pthread -g -O2 -fno-strict-aliasing}，然后重新编译Swoole。
+
+
+\begin{lstlisting}[language=bash]
+$ make clean
+$ make
+$ sudo make install
+\end{lstlistin}
+
+Swoole协程与xdebug、xhprof等zend扩展不兼容，因此不能使用xhprof对协程server进行性能分析采样。
+
+
+\begin{compactitem}
+\item 在PHP5中，原生的call\_user\_func和call\_user\_func\_array中无法使用协程client，请使用\textbackslash Swoole\textbackslash Coroutine::call\_user\_func和\textbackslash Swoole\textbackslash Coroutine::call\_user\_func\_array代替
+\item 在PHP7中可直接调用原生的call\_user\_func和call\_user\_func\_array
+\end{compactitem}
+
+
+\subsection{getDefer()}
+
+
+
+
+
+
+\subsection{setDefer()}
+
+
+
+
+\subsection{recv}
+
+
+
+
+
+\subsection{Coroutine::create()}
+
+
+
+
+
+\subsection{Coroutine::getuid()}
+
+
+
+\section{Coroutine Client}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
