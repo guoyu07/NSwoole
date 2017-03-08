@@ -13,7 +13,27 @@ Swoole2.0开始内置协程，并且提供了具备协程能力IO的接口（统
 Swoole提供的协程支持使得可以使用完全同步的PHP代码实现异步程序，而且PHP代码无需额外增加任何关键字，Swoole在底层自动进行协程调度来实现异步。
 
 
-协程通过多个入口点来实现在某些位置挂起和恢复执行来泛化用于非抢占多任务的子程序。
+协程和子例程都是程序组件，不过协程比子例程更为灵活，只是在实践中应用很少，而且协程更适合用来实现需要紧密联系的程序组件（例如多任务、迭代器、链表和管道等）。
+
+
+\begin{compactitem}
+\item 协程通过多个入口点来实现在某些位置挂起和恢复执行来泛化用于非抢占多任务的子程序。
+\item 子例程的起始点是唯一的入口点，一旦退出就是完成了子例程的执行，子例程的一个实例只会返回一次。
+\end{compactitem}
+
+
+
+协程通过yield在调用其他协程，通过yield转移执行权的协程之间不是调用者与被调用者的关系，而是彼此对称和平等的。
+
+协程的起始点是第一个入口点，协程中的返回点之后是接下来的入口点。
+
+\begin{compactitem}
+\item 子例程的生命周期遵循后进先出（最后一个被调用的子例程最先返回）。
+\item 协程的生命周期完全由它们的使用的需要决定。
+\end{compactitem}
+
+
+
 
 
 协程可以理解为纯用户态的线程，其通过协作而不是抢占来进行切换。相对于进程或者线程，协程所有的操作都可以在用户态完成，创建和切换的消耗更低。Swoole可以为每一个请求创建对应的协程，根据IO的状态来合理的调度协程，这会带来了以下优势：
@@ -40,7 +60,7 @@ $ phpize
 $ ./configure --with-php-config={path-to-php-config} --enable-coroutine
 $ make
 $ sudo make install
-\end{lstlistin}
+\end{lstlisting}
 
 编译通过之后，swoole server就切换到协程模式，而且在开启协程模式后，swoole\_server和swoole\_http\_server会为每一个请求创建对应的协程，可以在onRequest、onReceive和onConnect等事件回调中使用协程客户端。
 
@@ -62,7 +82,7 @@ $client->send('Hello world from swoole');
 $ret = $client->recv();
 $client->close();
 echo $ret;
-\end{lstlistin}
+\end{lstlisting}
 
 
 当代码执行到connect()和recv()函数时，swoole会触发进行协程切换，此时swoole可以去处理其他的事件或者接受新的请求。当此client连接成功或者后端服务回包后，swoole server会恢复协程上下文，代码逻辑继续从切换点开始恢复执行。开发者整个过程不需要关心整个切换过程。
@@ -85,7 +105,7 @@ gcc 4.4下如果在编译swoole的时候（即make阶段），出现gcc warning:
 $ make clean
 $ make
 $ sudo make install
-\end{lstlistin}
+\end{lstlisting}
 
 Swoole协程与xdebug、xhprof等zend扩展不兼容，因此不能使用xhprof对协程server进行性能分析采样。
 
