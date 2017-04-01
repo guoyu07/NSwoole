@@ -291,7 +291,11 @@ $server->on('Request',function($request,$response){
 $server->start();
 \end{lstlisting}
 
-\section{UDP Client}
+
+\section{Swoole}
+
+
+\subsection{UDP Client}
 
 
 \begin{lstlisting}[language=PHP]
@@ -310,7 +314,7 @@ if($ret) {
 }
 \end{lstlisting}
 
-\section{MySQL Client}
+\subsection{MySQL Client}
 
 
 
@@ -326,7 +330,7 @@ $swoole_mysql->connect([
 $res=$swoole_mysql->query('select sleep(1)');
 \end{lstlisting}
 
-\section{Redis Client}
+\subsection{Redis Client}
 
 
 \begin{lstlisting}[language=PHP]
@@ -336,7 +340,7 @@ $redis->connect('127.0.0.1',6379);
 $val = $redis->get('key');
 \end{lstlisting}
 
-\section{HTTP Client}
+\subsection{HTTP Client}
 
 
 \begin{lstlisting}[language=PHP]
@@ -356,7 +360,7 @@ $cli->close();
 
 
 
-\section{Link Pool}
+\subsection{Link Pool}
 
 Swoole2.0官方默认的实例是短连接的，在请求处理完毕后就会切断redis或mysql的连接。实际项目可以使用连接池实现复用。
 
@@ -405,15 +409,727 @@ if (count($pool) == 0) {
 \end{lstlisting}
 
 
+\section{Fibjs}
 
 
-\begin{lstlisting}[language=PHP]
+FibJS 是一个建立在 Google v8 Javascript 引擎基础上的应用服务器开发框架，不同于 node.js，FibJS 采用 fiber 解决 v8 引擎的多路复用，并通过大量 c++ 组件，将重负荷运算委托给后台线程，释放 v8 线程，争取更大的并发时间。
+
+相比JavaScriptCore和SpiderMonkey，使用v8引擎作为Fibjs基础核心的优势在于：
+
+\begin{compactitem}
+\item 支持多线程重入，协程的堆栈本质是线程，要支持协程必须要支持多堆栈重入；
+\item 不支持多线程并发，虽然 isolate 支持多堆栈现场，但是 isolate 内部却为无锁环境，因此不能接受多线程同时运行，必须在一个线程退出后，另一线程才可进入。
+\end{compactitem}
+
+
+在v8引擎的基础上集成了协程环境，并且和v8进行交互以及其他基础模块就实现了Fibjs框架，因此Fibjs可以理解为是一个基于Google v8引擎实现的协程应用服务器开发框架。
+
+
+\begin{example}
+使用Fibjs实现HTTP服务器
+\begin{lstlisting}[language=JavaScript]
+var http = require('http');
+var svr = new http.server(80,function(r){
+   r.response.body.write(new Buffer('Hello,world'));
+});
+svr.run();
+\end{lstlisting}
+\end{example}
+
+\begin{compactitem}
+\item fibjs不是前端开发框架，不同于jQuery，Angular等运行在浏览器的JavaScript框架，fibjs运行在服务端。
+\item fibjs不是Node.js的一个包，和NPM里面的fiber扩展包也没有关系。
+\item fibjs是基于协程和V8，运用C++语言开发的JavaScript运行平台，和Node.js一样，都是服务端JavaScript环境。
+\end{compactitem}
+
+Fibjs支持使用同步语法来编写异步代码，虽然Nodejs可以通过Asyc，Promise，Generator等手段，在形式上简化回调写法，但是本质上没有变，始终无法靠直觉写出简洁优美的代码。
+
+
+
+\begin{example}
+Node.js回调实现文件异步读取
+\begin{lstlisting}[language=JavaScript]
+var fs = require('fs');
+
+fs.readFile('file',function(err,data){
+   if(err) throw err;
+   console.log(data.toString());
+});
+\end{lstlisting}
+\end{example}
+
+
+\begin{example}
+Fibjs实现文件异步读取
+\begin{lstlisting}[language=JavaScript]
+var fs = require('fs');
+try {
+   var file = fs.readFile('file');
+   console.log(file);
+} catch(e) {
+   console.log(e.number);
+}
+\end{lstlisting}
+\end{example}
+
+fibjs的同步写法非常简洁，而且可以利用try catch来捕获异常，而node.js必须依赖回调来处理异步，而且需要采用Generator才能简化代码和错误处理。
+
+
+\begin{example}
+Nodejs基准测试
+\begin{lstlisting}[language=JavaScript]
+var http = require('http');
+var server = http.createServer(function(request,response){
+   response.writeHead(200, {
+      "Content-Type":"text/html"
+   });
+   response.write("Hello world");
+   response.end();
+});
+
+server.listen(8000);
+\end{lstlisting}
+\end{example}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+$ wrk -t12 -c400 -d30s http://127.0.0.1:8000/
+\end{lstlisting}
+
+
+\begin{example}
+Fibjs基准测试
+\begin{lstlisting}[language=JavaScript]
+var http = require('http');
+var svr = new http.Server(8080,function(req){
+   var rep = req.response;
+   rep.addHeader({
+      "Content-Type":"text/html"   
+   });
+   resp.body.write(new Buffer("Hello world"));
+});
+
+svr.run();
+\end{lstlisting}
+\end{example}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+$ wrk -t12 -c400 -d30s http://127.0.0.1:8080/
+\end{lstlisting}
+
+Fibjs代码可以继续精简如下：
+
+\begin{lstlisting}[language=JavaScript]
+var http = require('http');
+var svr = new http.Server(8080,function(req){
+   req.response.body.write(new Buffer("Hello world"));
+});
+
+svr.run();
+\end{lstlisting}
+
+nodejs 追求最小核，大量基础是使用 js 实现，导致不能有效利用 js 引擎，fibjs 只是将 js 作为胶水语言，只在必要的时候才会切换至 js 引擎，使得 js 引擎更有效地被利用在应用逻辑，所以虽然 nodejs 和 fibjs 都是单线程 js + 多线程 worker thread 的工作模式，但是 fibjs 对 worker thread 的利用率比 nodejs 要大得多。
+
+
+\begin{compactitem}
+\item Fibjs使用全新的多线程 fiber 内核，更快，更省，更优雅；
+\item Fibjs支持多 vm 并发，充分利用多核；
+\item Fibjs的所有 async 接口支持 callback 调用模式；
+\item Fibjs支持双向 pipe 通讯，支持超时，支持多进程；
+\item Fibjs增加 global 变量，用于修改全局变量；
+\item Fibjs增加 zip 模块，用于处理 zip 格式文件。
+\end{compactitem}
+
+\subsection{Windows}
+
+Windows 下需要安装 Visual Studio 2015。
+
+
+Windows 下点击start菜单选择所有程序选择Visual Studio 2015 选择Visual Studio Tools选择Developer Command Prompt for VS2015 打开终端后进入fibjs源代码目录，并执行命令：build
+
+
+
+
+如果需要在Unix下编译Fibjs，需要预先安装的工具包括GCC、CMake、GNU Make和libexecinfo。
+
+
+\begin{example}
+在Mac OS X下准备Fibjs编译环境
+\begin{lstlisting}[language=JavaScript]
+$ brew install cmake git
+\end{lstlisting}
+\end{example}
+
+\subsection{Ubuntu}
+
+
+\begin{example}
+在Ubuntu下准备Fibjs编译环境
+\begin{lstlisting}[language=JavaScript]
+$ sudo apt-get install g++ make cmake git
+\end{lstlisting}
+\end{example}
+
+
+如果要编译 32 位版本，另需要安装 multilib：
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+$ sudo apt install gcc-multilib
+$ sudo apt install g++-multilib
+\end{lstlisting}
+
+
+Arm on Ubuntu 准备环境命令如下：
+
+\begin{lstlisting}[language=JavaScript]
+apt install gcc-arm-linux-gnueabihf
+apt install g++-arm-linux-gnueabihf
+\end{lstlisting}
+
+
+
+如果要在ubuntu上编译arm64位版本，准备环境命令如下：
+
+
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+apt install gcc-aarch64-linux-gnu
+apt install g++-aarch64-linux-gnu
+\end{lstlisting}
+
+
+Mips on Ubuntu 准备环境如下：
+
+\begin{lstlisting}[language=JavaScript]
+apt install gcc-mips-linux-gnu
+apt install g++-mips-linux-gnu
+\end{lstlisting}
+
+
+如果要在ubuntu上编译mips 64位版本，准备环境命令如下：
+
+
+\begin{lstlisting}[language=JavaScript]
+apt install gcc-mips64-linux-gnuabi64
+apt install g++-mips64-linux-gnuabi64
+\end{lstlisting}
+
+Powerpc on Ubuntu 准备环境命令如下：
+
+
+\begin{lstlisting}[language=JavaScript]
+apt install gcc-powerpc-linux-gnu
+apt install g++-powerpc-linux-gnu
+\end{lstlisting}
+
+
+如果要在ubuntu上编译powerpc 64位版本，准备环境命令如下：
+
+
+
+\begin{lstlisting}[language=JavaScript]
+apt install gcc-powerpc64-linux-gnu
+apt install g++-powerpc64-linux-gnu
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+rm -f /usr/include/asm
+ln -s x86_64-linux-gnu /usr/include/i386-linux-gnu
+ln -s x86_64-linux-gnu /usr/include/x86_64-linux-gnux32
+\end{lstlisting}
+
+
+
+\subsection{Fedora}
+
+Fedora 准备环境命令如下：
+
+\begin{lstlisting}[language=JavaScript]
+yum install gcc-c++
+yum install libstdc++-static
+yum install make
+yum install cmake
+yum install git
+\end{lstlisting}
+
+如果要编译 32 位版本，准备环境命令如下：
+
+
+\begin{lstlisting}[language=JavaScript]
+yum install glibc-devel.i686
+yum install libstdc++-static.i686
+\end{lstlisting}
+
+\subsection{FreeBSD}
+
+
+FreeBSD (8,9)准备环境命令如下：
+
+
+\begin{lstlisting}[language=JavaScript]
+pkg_add -r cmake
+pkg_add -r libexecinfo
+pkg_add -r git
+\end{lstlisting}
+
+
+FreeBSD 10及以上系统准备环境命令如下：
+
+\begin{lstlisting}[language=JavaScript]
+pkg install cmake
+pkg install libexecinfo
+pkg install git
+\end{lstlisting}
+
+
+
+
+
+
+
+
+获取代码并预处理：
+
+
+\begin{lstlisting}[language=JavaScript]
+git clone https://github.com/xicilion/fibjs.git
+cd fibjs
+git submodule init
+git submodule update
+\end{lstlisting}
+
+在Unix 环境下编译Fibjs时，在 fibjs 项目根目录，有一个 build 的 shell 脚本，可用于 fibjs 编译。 
+
+执行编译命令：
+
+
+\begin{lstlisting}[language=JavaScript]
+$ sh build [options] [-jn] [-v] [-h]
+\end{lstlisting}
+
+\begin{compactitem}
+\item clean: 清除编译结果，便于全部重新编译
+\item Release: 以发布方式编译
+\item Debug: 以调试方式编译
+\item i386: 以 32 位发布方式编译
+\item amd64: 以 32 位发布方式编译
+\item arm: 交叉编译32位arm版本
+\item arm64: 交叉编译64位arm版本
+\item mips: 交叉编译32位mips版本
+\item mips64: 交叉编译64位mips版本
+\item ppc: 交叉编译32位powerpc版本
+\item ppc64: 交叉编译64位powerpc64版本
+\end{compactitem}
+
+例如：Release 模式编译命令如下：
+
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+$ sh build Release
+\end{lstlisting}
+
+进入 test 目录，执行 \texttt{../bin/\{\$OS\}\_Release/fibjs main.js} , 即可开始执行 fibjs 全部测试用例。
+
+
+\begin{lstlisting}[language=JavaScript]
+.......
+db
+  √ escape
+  √ formatMySQL
+  sqlite
+    √ empty sql
+    √ create table
+    √ intert
+    √ select
+    √ callback
+    √ binary (835ms) 
+BUG:simple_api_call
+  √ not hungup (109ms) 
+√ 312 tests completed (6727ms)
+\end{lstlisting}
+
+
+
+到现在为止就得到了一个可以执行的 fibjs 版本了。
+
+在 bin 目录下编辑生成一个 hello.js，内容如下：
+
+
+\begin{lstlisting}[language=JavaScript]
+console.log('Hello, World!');
+\end{lstlisting}
+
+然后即可执行：
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+$ Release/fibjs hello
+\end{lstlisting}
+
+可以看到屏幕输出：
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+Hello, World!
+\end{lstlisting}
+
+下面的时钟示例程序 dang.js，每隔一秒钟敲一声。当然也可以间隔时间更长。
+
+
+\begin{lstlisting}[language=JavaScript]
+var coroutine = require("coroutine");
+while(true){
+  console.log('DANG...');
+  coroutine.sleep(1000);
+}
+\end{lstlisting}
+
+执行后会看到屏幕中每隔一秒输出一个 \texttt{'DANG...'}
+
+同一时刻只有一个时钟显然不是我们想要的，我们需要好多个时钟。
+
+
+\begin{lstlisting}[language=JavaScript]
+var coroutine = require('coroutine');
+
+function dang(n){
+   while(true){
+      console.log('DANG %d...',n);
+      coroutine.sleep(1000);
+   }
+}
+
+for(var i = 0; i < 5; i ++) {
+   coroutine.start(dang,i);
+}
+
+while(true){
+   coroutine.sleep(1000);
+}
+\end{lstlisting}
+
+我们于是拥有 5个时钟，每隔一秒同时提醒：
+
+
+\begin{lstlisting}[language=JavaScript]
+DANG 0...
+DANG 1...
+DANG 2...
+DANG 3...
+DANG 4...
+...
+DANG 0...
+DANG 1...
+DANG 2...
+DANG 3...
+DANG 4...
+...
+\end{lstlisting}
+
+
+
+如果想更和谐一点，时钟们不要那么扎堆一起提醒，可以修改一下代码：
+
+
+\begin{lstlisting}[language=JavaScript]
+var coroutine = require('coroutine');
+
+function dang(n) {
+   while(true){
+      console.log('DANG %d...',n);
+      coroutine.sleep(1000);
+   }
+}
+
+for(var i = 0; i < 5; i ++) {
+   coroutine.start(dang,i);
+   coroutine.sleep(200);
+}
+
+while(true){
+   coroutine.sleep(1000);
+}
+\end{lstlisting}
+
+
+\subsection{并行作业}
+
+
+在很多时候，我们需要在一次请求完成多个独立的数据库操作，而且大部分时候，这些操作之间并无制约关系，通过协程就可以很方便地将这些操作平行发送，以提高响应速度。
+
+
+
+\begin{lstlisting}[language=JavaScript]
+var coroutine = require("coroutine");
+function func(){
+  coroutine.parallel(
+    function(){
+      //...
+    }, 
+    function(){
+      //...
+    }, 
+    function(){
+      //...
+    }, 
+    function(){
+      //...
+    }
+  );
+}
+\end{lstlisting}
+
+上述代码中的多个匿名函数会被同时执行，并在全部完成后，继续下面的代码。
+
+
+\subsection{异步作业}
+
+
+在每次处理用户请求时，总会有一些操作是不需要立即完成的，只有用户可以感知的部分需要在请求内完成，为了尽快响应用户，我们可以把用户暂时感知不到的请求丢到请求返回以后进行：
+
+\begin{lstlisting}[language=JavaScript]
+var coroutine = require("coroutine");
+function func(){
+  //...
+  coroutine.start(function(){
+    //...
+  });
+  //...
+}
+\end{lstlisting}
+
+上述代码中匿名函数便会延迟执行，而用户得以迅速得到反馈。
+
+和层层回调相比，协程可以以优雅的代码来编写并发代码。
+
+
+\subsection{模块管理}
+
+
+fibjs 采用 CommonJS 模块加载机制进行模块管理，支持直接使用同步和异步加载语法，以兼容前端代码。
+
+模块加载由四个基本元素组成，包含两个函数 require() 函数, define() 函数 和两个对象 module 对象, exports 对象 。 
+
+
+\subsubsection{require()}
+
+
+
+\subsubsection{define()}
+
+
+\subsubsection{module}
+
+
+
+\subsubsection{exports}
+
+
+
+\subsection{多核编程}
+
+
+JavaScript 是个单线程编程语言，虽然 fibjs 通过 fiber 将并发引入 JavaScript 开发，但是并不能真正让 JavaScript 可以并行运算。
+
+为了解决这个问题，fibjs 在 0.2.0 开始引入多 vm 运算，通过多个独立的 JavaScript vm 达到充分利用多核 cpu 的需求。
+
+
+
+
+fibjs 启用多核运算的方式及其简单，因为多核运算的实现是基于多个 vm 的，而多个 vm 之间并不能共享数据，因此，在 vm 之间便需要通过 rpc 模块交互。示例如下：
+
+
+
+\begin{lstlisting}[language=JavaScript]
+var rpc = require("rpc");
+var task = rpc.open("path/to.js");
+console.log(task.func1(100, 200));
+console.log(task.sub1.func2(100, 200, 300));
+\end{lstlisting}
+
+示例中，多核运算与普通模块引用的差别，主要是 rpc.open，通过 rpc.open，可以创建一个 RpcTask 代理对象，用于封装发往运算 vm 的请求和返回结果。
+
+
+RpcTask 对象同时还负责对远程对象的子对象引用的封装，比如 task.sub1 就会创建一个新的 RpcTask 代理对象，指向 vm 中模块 path/to.js 的 sub1 对象。
+
+
+因为多核运算需要通过 rpc 交互，所以在请求和返回时，便对数据有比较严格的约束。无论是传递参数，还是返回结果，都必须是可以序列化的数据。简单说就是必须是可以 json 编码解码的数据。如果传递一个有类型的对象，则只会传递为一个无类型的对象和数据来。
+
+
+\subsection{服务器编程}
+
+
+使用 fibjs 创建一个简单的 web 服务器是一件很方便的事情。
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+var http = require('http');
+var svr = new http.Server(80, http.fileHandler('../fibjs/docs'));
+svr.run();
+\end{lstlisting}
+
+这个 web 服务器已经足够强大，支持自动压缩，支持预压缩，支持更新检查，作为普通的静态文件服务已经足够。不过，apache 还是 nginx都是更专业的静态Web服务器，因此fibjs 的静态 web 服务器仅仅用于辅助完成一些不是很大量的前端文件下载。
+
+动态Web服务器其实并不比静态文件服务器复杂更多，例如下面是一个简单的文本响应，如果需要构建更复杂的动态服务器则需要进一步修改。
+
+
+\begin{lstlisting}[language=JavaScript]
+var http = require('http');
+var svr = new http.Server(80, function(r){
+  r.response.write('Hello, World!');
+});
+svr.run();
+\end{lstlisting}
+
+实际上，当网站规模不大的时候，我们通常需要在同一台服务器上同时支持静态文件和动态请求：
+
+
+\begin{lstlisting}[language=JavaScript]
+var http = require('http');
+var mq = require('mq');
+var svr = new http.Server(8080, new mq.Routing({
+    '^/www(/.*)': http.fileHandler('../fibjs/docs'),
+    '^/rpc(/.*)': function(r) {
+        r.response.write('Hello, World!');
+    }
+}));
+svr.run();
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
 
 \end{lstlisting}
 
 
 
 
-\begin{lstlisting}[language=PHP]
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
+
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[language=JavaScript]
 
 \end{lstlisting}
